@@ -12,10 +12,22 @@ import {
   Flame,
   Building2,
 } from "lucide-react";
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
 import { VoxShell } from "@/components/vox/VoxShell";
 import { VoxCard } from "@/components/vox/VoxCard";
 import { VoxBadge } from "@/components/vox/VoxBadge";
 import { cn } from "@/lib/utils";
+import { CEO_WEEKLY_VOLUME, CEO_SENTIMENT_TREND, CEO_THEMES } from "@/lib/mock";
 
 export const Route = createFileRoute("/ceo")({
   beforeLoad: async () => {
@@ -84,7 +96,7 @@ function ExecutivePortal() {
             delta="+12.4%"
             up
             icon={Activity}
-            sparkline={[24, 28, 26, 31, 33, 38, 41]}
+            sparklineData={[24, 28, 26, 31, 33, 38, 41].map((v) => ({ value: v }))}
             caption="Throughput vs. prior week"
           />
           <KpiCard
@@ -95,7 +107,7 @@ function ExecutivePortal() {
             up
             inverse
             icon={TrendingDown}
-            sparkline={[42, 41, 40, 38, 37, 35, 34]}
+            sparklineData={[42, 41, 40, 38, 37, 35, 34].map((v) => ({ value: v }))}
             caption="AI-detected mood, 7-day"
           />
           <KpiCard
@@ -105,7 +117,7 @@ function ExecutivePortal() {
             delta="+$420K"
             down
             icon={DollarSign}
-            sparkline={[18, 19, 22, 24, 27, 28, 31]}
+            sparklineData={[18, 19, 22, 24, 27, 28, 31].map((v) => ({ value: v }))}
             caption="Open Voxes weighted by balance"
           />
           <KpiCard
@@ -114,7 +126,7 @@ function ExecutivePortal() {
             unit="systemic groups"
             delta="2 emerging"
             icon={Layers}
-            sparkline={[2, 2, 3, 3, 4, 3, 3]}
+            sparklineData={[2, 2, 3, 3, 4, 3, 3].map((v) => ({ value: v }))}
             caption="Top: KYC, Wire ops, iOS app"
           />
           <KpiCard
@@ -124,7 +136,7 @@ function ExecutivePortal() {
             delta="−0.3d"
             up
             icon={Clock}
-            sparkline={[34, 32, 30, 29, 28, 26, 24]}
+            sparklineData={[34, 32, 30, 29, 28, 26, 24].map((v) => ({ value: v }))}
             caption="Resolved Voxes, weekly"
           />
           <KpiCard
@@ -134,7 +146,7 @@ function ExecutivePortal() {
             delta="+0.6 pts"
             up
             icon={ShieldCheck}
-            sparkline={[92, 93, 94, 95, 96, 96, 97]}
+            sparklineData={[92, 93, 94, 95, 96, 96, 97].map((v) => ({ value: v }))}
             caption="Tier 1 + Tier 2 combined"
           />
         </div>
@@ -199,13 +211,8 @@ function ExecutivePortal() {
   );
 }
 
-const themes = [
-  { label: "KYC re-verification delays", count: "184 Voxes", pct: 92 },
-  { label: "Wire transfer compliance hold", count: "126 Voxes", pct: 72 },
-  { label: "iOS 18.4 app login loop", count: "98 Voxes", pct: 58 },
-  { label: "Statement reconciliation gaps", count: "61 Voxes", pct: 38 },
-  { label: "ATM dispute resolution time", count: "44 Voxes", pct: 26 },
-];
+const themes = CEO_THEMES;
+
 
 interface KpiProps {
   title: string;
@@ -216,17 +223,17 @@ interface KpiProps {
   down?: boolean;
   inverse?: boolean;
   icon: React.ComponentType<{ className?: string }>;
-  sparkline: number[];
+  sparklineData: { value: number }[];
   caption: string;
 }
 
-function KpiCard({ title, value, unit, delta, up, down, icon: Icon, sparkline, caption }: KpiProps) {
+function KpiCard({ title, value, unit, delta, up, down, icon: Icon, sparklineData, caption }: KpiProps) {
   return (
     <VoxCard className="p-5">
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-slate-500">
-            <Icon className="h-3.5 w-3.5" />
+            <Icon className="h-3.5 w-3.5" aria-hidden="true" />
             {title}
           </div>
           <div className="mt-3 flex items-baseline gap-1.5">
@@ -242,50 +249,42 @@ function KpiCard({ title, value, unit, delta, up, down, icon: Icon, sparkline, c
             !up && !down && "bg-slate-100 text-slate-700",
           )}
         >
-          {up && <TrendingUp className="h-3 w-3" />}
-          {down && <TrendingDown className="h-3 w-3" />}
+          {up && <TrendingUp className="h-3 w-3" aria-hidden="true" />}
+          {down && <TrendingDown className="h-3 w-3" aria-hidden="true" />}
           {delta}
         </div>
       </div>
 
-      <div className="mt-3">
-        <Sparkline points={sparkline} />
+      <div className="mt-3 h-12" role="img" aria-label={`${title} trend chart`}>
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={sparklineData} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id={`grad-${title.replace(/\s/g, "-")}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="rgb(15 23 42)" stopOpacity={0.2} />
+                <stop offset="95%" stopColor="rgb(15 23 42)" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <Area
+              type="monotone"
+              dataKey="value"
+              stroke="rgb(15 23 42)"
+              strokeWidth={1.4}
+              fill={`url(#grad-${title.replace(/\s/g, "-")})`}
+              dot={false}
+              isAnimationActive={false}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
       </div>
       <p className="mt-2 text-[11px] text-slate-500">{caption}</p>
     </VoxCard>
   );
 }
 
-function Sparkline({ points }: { points: number[] }) {
-  const w = 240;
-  const h = 56;
-  const min = Math.min(...points);
-  const max = Math.max(...points);
-  const range = max - min || 1;
-  const step = w / (points.length - 1);
-  const coords = points.map((p, i) => {
-    const x = i * step;
-    const y = h - ((p - min) / range) * (h - 6) - 3;
-    return [x, y] as const;
-  });
-  const linePath = coords.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
-  const areaPath = `${linePath} L${w},${h} L0,${h} Z`;
-  const id = `g-${Math.random().toString(36).slice(2, 8)}`;
 
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="h-12 w-full" preserveAspectRatio="none">
-      <defs>
-        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgb(15 23 42)" stopOpacity="0.18" />
-          <stop offset="100%" stopColor="rgb(15 23 42)" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={areaPath} fill={`url(#${id})`} />
-      <path d={linePath} fill="none" stroke="rgb(15 23 42)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
+function Sparkline() {
+  return null; // replaced by Recharts AreaChart inside KpiCard
 }
-
 function Heatmap() {
   const rows = ["Retail", "Premier", "Business", "Wealth", "Treasury"];
   const cols = ["Payments", "Cards", "KYC", "Statements", "Digital", "Disputes"];

@@ -86,13 +86,15 @@ export function VoxShell({ accent, portalLabel, navItems = [], user, children }:
         </div>
       </div>
 
-      <nav className="flex-1 space-y-0.5 px-3">
+      <nav role="navigation" aria-label="Portal navigation" className="flex-1 space-y-0.5 px-3">
         {navItems.map((item) => {
           const Wrapper: any = item.to ? Link : "div";
           return (
             <Wrapper
               key={item.label}
               {...(item.to ? { to: item.to } : {})}
+              aria-label={item.label}
+              aria-current={item.active ? "page" : undefined}
               className={cn(
                 "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                 item.active
@@ -100,7 +102,7 @@ export function VoxShell({ accent, portalLabel, navItems = [], user, children }:
                   : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
               )}
             >
-              <span className="[&_svg]:h-4 [&_svg]:w-4">{item.icon}</span>
+              <span className="[&_svg]:h-4 [&_svg]:w-4" aria-hidden="true">{item.icon}</span>
               <span>{item.label}</span>
             </Wrapper>
           );
@@ -191,10 +193,12 @@ export function VoxShell({ accent, portalLabel, navItems = [], user, children }:
           </button>
 
           <div className="relative hidden max-w-md flex-1 sm:block">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
             <input
+              id="vox-global-search"
               type="search"
               placeholder="Search Voxes, accounts, themes…"
+              aria-label="Search Voxes, accounts, and themes"
               className="h-9 w-full rounded-md border border-slate-200 bg-slate-50/50 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-400"
             />
           </div>
@@ -209,7 +213,7 @@ export function VoxShell({ accent, portalLabel, navItems = [], user, children }:
           </div>
         </header>
 
-        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        <main role="main" id="vox-main-content" className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
       </div>
     </div>
   );

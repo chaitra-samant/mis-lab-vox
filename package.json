@@ -16,7 +16,9 @@
     "test:phase2": "tsx tests/phase2.test.ts",
     "test:phase2:watch": "tsx watch tests/phase2.test.ts",
     "test:phase3": "cd ai && set PYTHONPATH=. && .\\venv\\Scripts\\pytest tests\\test_ai.py",
-    "test:phase3:watch": "cd ai && set PYTHONPATH=. && .\\venv\\Scripts\\pytest tests\\test_ai.py -f"
+    "test:phase3:watch": "cd ai && set PYTHONPATH=. && .\\venv\\Scripts\\pytest tests\\test_ai.py -f",
+    "test:phase4": "vitest run --config vitest.config.ts",
+    "test:phase4:watch": "vitest --config vitest.config.ts"
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.25.5",
@@ -76,22 +78,30 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@axe-core/react": "^4.11.2",
     "@eslint/js": "^9.32.0",
     "@lovable.dev/vite-tanstack-config": "^1.4.0",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^22.19.17",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.0.4",
+    "@vitest/coverage-v8": "^4.1.5",
     "eslint": "^9.32.0",
     "eslint-config-prettier": "^10.1.1",
     "eslint-plugin-prettier": "^5.2.6",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
+    "jsdom": "^29.0.2",
     "prettier": "^3.7.3",
     "tsx": "^4.21.0",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vitest": "^4.1.5"
   }
 }

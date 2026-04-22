@@ -11,6 +11,8 @@ import {
   CheckCircle2,
   UserPlus,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Layers,
   BarChart3,
 } from "lucide-react";
@@ -19,6 +21,7 @@ import { VoxCard } from "@/components/vox/VoxCard";
 import { VoxButton } from "@/components/vox/VoxButton";
 import { VoxBadge } from "@/components/vox/VoxBadge";
 import { cn } from "@/lib/utils";
+import { MOCK_AGENT_COMPLAINTS, type AgentComplaint, type AgentPriority, type AgentSentiment, type AgentStatus } from "@/lib/mock";
 
 export const Route = createFileRoute("/agent")({
   beforeLoad: async () => {
@@ -42,43 +45,13 @@ export const Route = createFileRoute("/agent")({
   component: AgentPortal,
 });
 
-type Priority = "P1" | "P2" | "P3";
-type Sentiment = "Positive" | "Neutral" | "Negative";
-type Status = "Open" | "In Review" | "In Progress" | "Resolved";
 
-interface Vox {
-  id: string;
-  subject: string;
-  priority: Priority;
-  sentiment: Sentiment;
-  status: Status;
-  assignee: string;
-  customer: string;
-  account: string;
-  exposure: string;
-  channel: string;
-  ts: string;
-  body: string;
-}
+type Priority = AgentPriority;
+type Sentiment = AgentSentiment;
+type Status = AgentStatus;
+type Vox = AgentComplaint;
 
-const data: Vox[] = [
-  { id: "VX-10248", subject: "Transaction Latency on Wire Transfer", priority: "P1", sentiment: "Negative", status: "In Progress", assignee: "J. Morgan", customer: "Alex Chen", account: "Premier · 4421", exposure: "$248,500", channel: "Web", ts: "2h ago",
-    body: "Wire initiated 49h ago to a verified beneficiary remains 'pending compliance'. Customer reports vendor demanding payment confirmation today." },
-  { id: "VX-10247", subject: "KYC Verification Delay", priority: "P2", sentiment: "Negative", status: "Open", assignee: "Unassigned", customer: "Riya Patel", account: "Business · 7710", exposure: "$0", channel: "Mobile", ts: "3h ago",
-    body: "Re-verification request submitted 8 days ago. No outreach received. Account features partially restricted." },
-  { id: "VX-10246", subject: "Card Decline — Merchant Category", priority: "P2", sentiment: "Neutral", status: "In Review", assignee: "S. Okafor", account: "Personal · 2189", customer: "Daniel Reyes", exposure: "$1,240", channel: "Phone", ts: "4h ago",
-    body: "Recurring SaaS charge declined twice. MCC restriction appears to be misclassified." },
-  { id: "VX-10243", subject: "Statement Discrepancy — Q3", priority: "P3", sentiment: "Neutral", status: "In Review", assignee: "M. Bauer", account: "Premier · 9904", customer: "Hana Takeda", exposure: "$320", channel: "Web", ts: "Yesterday",
-    body: "Closing balance on Q3 statement does not match in-app ledger by $320.42." },
-  { id: "VX-10240", subject: "Wire Transfer Hold — Sanctions Review", priority: "P1", sentiment: "Negative", status: "Open", assignee: "Unassigned", account: "Business · 1180", customer: "Northwind LLC", exposure: "$1,120,000", channel: "Web", ts: "Yesterday",
-    body: "Outbound wire to long-standing supplier flagged. Treasury team requesting urgent review." },
-  { id: "VX-10238", subject: "App Login Loop — iOS 18.4", priority: "P2", sentiment: "Negative", status: "In Progress", assignee: "L. Kowalski", account: "Personal · 3320", customer: "Marco Vidal", exposure: "$0", channel: "Mobile", ts: "2 days ago",
-    body: "Repeated logout after Face ID prompt on iOS 18.4. Multiple customers affected based on cluster." },
-  { id: "VX-10231", subject: "Disputed ATM Withdrawal", priority: "P2", sentiment: "Negative", status: "In Review", assignee: "S. Okafor", account: "Personal · 5582", customer: "Olivia Brand", exposure: "$600", channel: "Phone", ts: "2 days ago",
-    body: "Customer disputes $600 ATM withdrawal at off-network terminal. Camera footage requested." },
-  { id: "VX-10198", subject: "Card Decline Pattern — EU Travel", priority: "P3", sentiment: "Neutral", status: "Resolved", assignee: "M. Bauer", account: "Premier · 4421", customer: "Alex Chen", exposure: "$0", channel: "Web", ts: "3 days ago",
-    body: "Travel notice was on file but fraud rules over-flagged EU MCCs. Rule tuned." },
-];
+const data: Vox[] = MOCK_AGENT_COMPLAINTS;
 
 const priorities: Priority[] = ["P1", "P2", "P3"];
 const sentiments: Sentiment[] = ["Positive", "Neutral", "Negative"];
@@ -97,14 +70,18 @@ const statusTone: Record<Status, "open" | "review" | "progress" | "resolved"> = 
   Resolved: "resolved",
 };
 
+const PAGE_SIZE = 10;
+
 function AgentPortal() {
   const [q, setQ] = useState("");
   const [priority, setPriority] = useState<Priority | "All">("All");
   const [sentiment, setSentiment] = useState<Sentiment | "All">("All");
   const [status, setStatus] = useState<Status | "All">("All");
   const [active, setActive] = useState<Vox | null>(null);
+  const [page, setPage] = useState(1);
 
   const filtered = useMemo(() => {
+    setPage(1);
     return data.filter((v) => {
       if (priority !== "All" && v.priority !== priority) return false;
       if (sentiment !== "All" && v.sentiment !== sentiment) return false;
@@ -112,7 +89,11 @@ function AgentPortal() {
       if (q && !`${v.id} ${v.subject} ${v.customer}`.toLowerCase().includes(q.toLowerCase())) return false;
       return true;
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, priority, sentiment, status]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <VoxShell
@@ -154,11 +135,13 @@ function AgentPortal() {
         <VoxCard className="p-3">
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[200px]">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
               <input
+                id="agent-search"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Search ID, subject, or customer…"
+                aria-label="Search complaints by ID, subject, or customer"
                 className="h-9 w-full rounded-md border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-400"
               />
             </div>
@@ -199,8 +182,8 @@ function AgentPortal() {
                   <th className="px-4 py-2.5 font-medium">Updated</th>
                 </tr>
               </thead>
-              <tbody>
-                {filtered.map((v) => (
+              <tbody id="agent-complaints-table-body">
+                {paginated.map((v) => (
                   <tr
                     key={v.id}
                     onClick={() => setActive(v)}
@@ -237,6 +220,37 @@ function AgentPortal() {
                 )}
               </tbody>
             </table>
+          </div>
+          {/* Pagination */}
+          <div
+            role="navigation"
+            aria-label="Complaints pagination"
+            className="flex items-center justify-between border-t border-slate-200/60 px-4 py-3"
+          >
+            <span className="text-xs text-slate-500">
+              Showing {Math.min((page - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                id="agent-pagination-prev"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                aria-label="Previous page"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="px-2 text-xs font-medium text-slate-700">{page} / {totalPages}</span>
+              <button
+                id="agent-pagination-next"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                aria-label="Next page"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </VoxCard>
       </div>

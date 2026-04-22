@@ -109,3 +109,106 @@ export function markComplaintFeedback(id: string, rating: number, comment: strin
     return c;
   });
 }
+
+// ============================================================
+// Agent Portal Mock Data (used in Phase 4 UI tests)
+// ============================================================
+export type AgentPriority = "P1" | "P2" | "P3";
+export type AgentSentiment = "Positive" | "Neutral" | "Negative";
+export type AgentStatus = "Open" | "In Review" | "In Progress" | "Resolved";
+
+export interface AgentComplaint {
+  id: string;
+  subject: string;
+  priority: AgentPriority;
+  sentiment: AgentSentiment;
+  status: AgentStatus;
+  assignee: string;
+  customer: string;
+  account: string;
+  exposure: string;
+  channel: string;
+  ts: string;
+  body: string;
+}
+
+const SUBJECTS = [
+  "Transaction Latency on Wire Transfer",
+  "KYC Verification Delay",
+  "Card Decline — Merchant Category",
+  "Statement Discrepancy",
+  "Wire Transfer Hold — Sanctions Review",
+  "App Login Loop — iOS 18.4",
+  "Disputed ATM Withdrawal",
+  "Card Decline Pattern — EU Travel",
+  "Duplicate Charge on Account",
+  "Account Freeze Without Notice",
+];
+const PRIORITIES: AgentPriority[] = ["P1", "P2", "P3"];
+const SENTIMENTS: AgentSentiment[] = ["Positive", "Neutral", "Negative"];
+const STATUSES: AgentStatus[] = ["Open", "In Review", "In Progress", "Resolved"];
+const CHANNELS = ["Web", "Mobile", "Phone", "Email"];
+const ASSIGNEES = ["J. Morgan", "S. Okafor", "M. Bauer", "L. Kowalski", "Unassigned"];
+const CUSTOMERS = ["Alex Chen", "Riya Patel", "Daniel Reyes", "Hana Takeda", "Northwind LLC", "Marco Vidal", "Olivia Brand"];
+
+function seededRandom(seed: number): () => number {
+  let s = seed;
+  return () => {
+    s = (s * 1664525 + 1013904223) & 0xffffffff;
+    return (s >>> 0) / 0x100000000;
+  };
+}
+
+function generateMockAgentComplaints(count: number): AgentComplaint[] {
+  const rand = seededRandom(42);
+  return Array.from({ length: count }, (_, i) => {
+    const idx = (n: number) => Math.floor(rand() * n);
+    return {
+      id: `VX-${10000 + i}`,
+      subject: SUBJECTS[idx(SUBJECTS.length)],
+      priority: PRIORITIES[idx(PRIORITIES.length)],
+      sentiment: SENTIMENTS[idx(SENTIMENTS.length)],
+      status: STATUSES[idx(STATUSES.length)],
+      assignee: ASSIGNEES[idx(ASSIGNEES.length)],
+      customer: CUSTOMERS[idx(CUSTOMERS.length)],
+      account: `${["Personal", "Premier", "Business"][idx(3)]} · ${1000 + idx(9000)}`,
+      exposure: idx(2) === 0 ? `$${(idx(50) * 1000).toLocaleString()}` : "$0",
+      channel: CHANNELS[idx(CHANNELS.length)],
+      ts: `${idx(72) + 1}h ago`,
+      body: "Customer complaint details requiring agent review and resolution.",
+    };
+  });
+}
+
+export const MOCK_AGENT_COMPLAINTS: AgentComplaint[] = generateMockAgentComplaints(100);
+
+// ============================================================
+// CEO Portal Chart Data
+// ============================================================
+export const CEO_WEEKLY_VOLUME = [
+  { day: "Mon", resolved: 24, open: 8 },
+  { day: "Tue", resolved: 28, open: 10 },
+  { day: "Wed", resolved: 26, open: 9 },
+  { day: "Thu", resolved: 31, open: 12 },
+  { day: "Fri", resolved: 33, open: 7 },
+  { day: "Sat", resolved: 38, open: 5 },
+  { day: "Sun", resolved: 41, open: 4 },
+];
+
+export const CEO_SENTIMENT_TREND = [
+  { day: "Mon", negative: 42, positive: 38 },
+  { day: "Tue", negative: 41, positive: 40 },
+  { day: "Wed", negative: 40, positive: 39 },
+  { day: "Thu", negative: 38, positive: 42 },
+  { day: "Fri", negative: 37, positive: 43 },
+  { day: "Sat", negative: 35, positive: 45 },
+  { day: "Sun", negative: 34, positive: 46 },
+];
+
+export const CEO_THEMES = [
+  { label: "KYC re-verification delays", count: 184, pct: 92 },
+  { label: "Wire transfer compliance hold", count: 126, pct: 72 },
+  { label: "iOS 18.4 app login loop", count: 98, pct: 58 },
+  { label: "Statement reconciliation gaps", count: 61, pct: 38 },
+  { label: "ATM dispute resolution time", count: 44, pct: 26 },
+];

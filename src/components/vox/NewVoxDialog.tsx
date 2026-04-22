@@ -1,7 +1,6 @@
 import { useState, useMemo } from "react";
 import { 
   X, 
-  UploadCloud, 
   ArrowLeft, 
   ArrowRight, 
   CheckCircle2, 
@@ -10,6 +9,7 @@ import {
 import { VoxCard } from "./VoxCard";
 import { VoxButton } from "./VoxButton";
 import { VoxInput, VoxLabel, VoxTextarea } from "./VoxInput";
+import { VoxFileUpload } from "./VoxFileUpload";
 import { SuggestionCard } from "./SuggestionCard";
 import { cn } from "@/lib/utils";
 import { MOCK_CUSTOMER } from "@/lib/mock";
@@ -324,27 +324,14 @@ export function NewVoxDialog({ onClose }: NewVoxDialogProps) {
               </div>
 
               <div className="pt-2 border-t border-slate-100">
-                <VoxLabel className="mb-2 block">Attachments <span className="lowercase text-[10px] font-normal">(Max 3)</span></VoxLabel>
-                <div className="flex gap-3">
-                  <label className="flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 hover:border-slate-400 px-4 text-sm font-medium text-slate-600 transition-colors w-full sm:w-auto">
-                    <UploadCloud className="h-4 w-4" /> Choose Files
-                    <input type="file" multiple className="hidden" onChange={handleFileChange} />
-                  </label>
-                </div>
+                <VoxLabel className="mb-2 block">Attachments <span className="lowercase text-[10px] font-normal">(Optional)</span></VoxLabel>
+                <VoxFileUpload
+                  accept="image/*,.pdf,.doc,.docx"
+                  maxSizeMB={5}
+                  onFileSelected={(file) => setFiles((prev) => [...prev.slice(-2), file])}
+                />
                 {files.length > 0 && (
-                  <ul className="mt-3 space-y-2">
-                    {files.map((f, i) => (
-                      <li key={i} className="flex items-center justify-between text-xs bg-slate-50 border border-slate-100 rounded p-2 text-slate-700">
-                        <span className="truncate max-w-[200px]">{f.name}</span>
-                        <button 
-                          className="text-slate-400 hover:text-red-500"
-                          onClick={() => setFiles(files.filter((_, index) => index !== i))}
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                  <p className="mt-2 text-xs text-slate-500">{files.length} file(s) selected</p>
                 )}
               </div>
             </div>
