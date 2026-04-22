@@ -43,7 +43,7 @@ export function getRoleRedirectPath(role: UserRole | null): string {
     case "customer":
       return "/customer";
     case "employee":
-      return "/agent"; // Lovable generated /agent for Employee
+      return "/employee"; // Renamed from /agent to match backend consistency
     case "ceo":
       return "/ceo";
     default:

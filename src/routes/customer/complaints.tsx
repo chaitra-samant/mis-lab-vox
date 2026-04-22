@@ -156,7 +156,7 @@ function ComplaintRow({
       },
       {
         title: "In Progress",
-        ts: isInProgress ? "Being reviewed by agent" : "Pending",
+        ts: isInProgress ? "Being reviewed by employee" : "Pending",
         completed: isInProgress,
         active: c.status === "IN_PROGRESS" || c.status === "ESCALATED",
       },

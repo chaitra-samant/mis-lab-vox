@@ -22,13 +22,13 @@ import { VoxCard } from "@/components/vox/VoxCard";
 import { VoxButton } from "@/components/vox/VoxButton";
 import { VoxBadge } from "@/components/vox/VoxBadge";
 import { cn } from "@/lib/utils";
-import { MOCK_AGENT_COMPLAINTS, type AgentPriority, type AgentSentiment, type AgentStatus } from "@/lib/mock";
+import { MOCK_EMPLOYEE_COMPLAINTS, type EmployeePriority, type EmployeeSentiment, type EmployeeStatus } from "@/lib/mock";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getComplaints } from "@/lib/server/complaints";
 import { supabase } from "@/lib/supabase";
 import { useEffect } from "react";
 
-export const Route = createFileRoute("/agent")({
+export const Route = createFileRoute("/employee")({
   beforeLoad: async () => {
     const role = await getUserRole();
     if (!role) {
@@ -41,17 +41,17 @@ export const Route = createFileRoute("/agent")({
   },
   head: () => ({
     meta: [
-      { title: "Agent Workspace — Vox" },
+      { title: "Employee Workspace — Vox" },
       { name: "description", content: "High-density worklist with sentiment, urgency, and SLA signals built-in." },
-      { property: "og:title", content: "Agent Workspace — Vox" },
+      { property: "og:title", content: "Employee Workspace — Vox" },
       { property: "og:description", content: "Triage, route, and resolve customer Voxes with focus." },
     ],
   }),
-  component: AgentPortal,
+  component: EmployeePortal,
 });
 
 type Priority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
-type Sentiment = AgentSentiment;
+type Sentiment = EmployeeSentiment;
 type Status = "Open" | "In progress" | "Escalated" | "Resolved" | "Closed";
 
 const priorities: Priority[] = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
@@ -82,17 +82,17 @@ const statusTone: Record<Status, "open" | "review" | "progress" | "resolved"> = 
 const PAGE_SIZE = 10;
 
 
-function AgentPortal() {
+function EmployeePortal() {
   const queryClient = useQueryClient();
   const { data: complaints = [], isLoading } = useQuery({
-    queryKey: ["complaints", "agent"],
+    queryKey: ["complaints", "employee"],
     queryFn: () => getComplaints({ data: "employee" }),
   });
 
   // Real-time subscription
   useEffect(() => {
     const channel = supabase
-      .channel("agent-complaints")
+      .channel("employee-complaints")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "complaints" },
@@ -117,7 +117,7 @@ function AgentPortal() {
 
   const complaintsArray = Array.isArray(complaints) ? complaints : [];
 
-  // Map Supabase data to Vox type
+  // Map Supabase data to EmployeeComplaint type
   const mappedData = useMemo(() => {
     return complaintsArray.map((c: any) => ({
       id: c.id.split("-")[0].toUpperCase(),
@@ -137,8 +137,11 @@ function AgentPortal() {
     }));
   }, [complaintsArray]);
 
-  const filtered = useMemo(() => {
+  useEffect(() => {
     setPage(1);
+  }, [q, priority, sentiment, status]);
+
+  const filtered = useMemo(() => {
     return mappedData.filter((v: any) => {
       if (priority !== "All" && v.priority !== priority) return false;
       if (sentiment !== "All" && v.sentiment !== sentiment) return false;
@@ -154,10 +157,10 @@ function AgentPortal() {
   return (
     <VoxShell
       accent="indigo"
-      portalLabel="Agent"
-      user={{ name: "Jordan Morgan", role: "Senior Resolution Agent" }}
+      portalLabel="Employee"
+      user={{ name: "Jordan Morgan", role: "Senior Resolution Specialist" }}
       navItems={[
-        { label: "Worklist", icon: <Inbox />, to: "/agent", active: true },
+        { label: "Worklist", icon: <Inbox />, to: "/employee", active: true },
         { label: "Queues", icon: <Layers /> },
         { label: "Performance", icon: <BarChart3 /> },
       ]}
@@ -187,7 +190,7 @@ function AgentPortal() {
             <div className="relative flex-1 min-w-[200px]">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
               <input
-                id="agent-search"
+                id="employee-search"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Search ID, subject, or customer…"
@@ -232,7 +235,7 @@ function AgentPortal() {
                   <th className="px-4 py-2.5 font-medium">Updated</th>
                 </tr>
               </thead>
-              <tbody id="agent-complaints-table-body">
+              <tbody id="employee-complaints-table-body">
                 {paginated.map((v) => (
                   <tr
                     key={v.id}
@@ -282,7 +285,7 @@ function AgentPortal() {
             </span>
             <div className="flex items-center gap-1">
               <button
-                id="agent-pagination-prev"
+                id="employee-pagination-prev"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
                 aria-label="Previous page"
@@ -292,7 +295,7 @@ function AgentPortal() {
               </button>
               <span className="px-2 text-xs font-medium text-slate-700">{page} / {totalPages}</span>
               <button
-                id="agent-pagination-next"
+                id="employee-pagination-next"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
                 aria-label="Next page"
@@ -340,7 +343,7 @@ function PillSelect({
   );
 }
 
-function VoxDetailSheet({ vox, onClose }: { vox: Vox; onClose: () => void }) {
+function VoxDetailSheet({ vox, onClose }: { vox: EmployeeComplaint; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50">
       <div className="absolute inset-0 bg-slate-900/30 backdrop-blur-sm" onClick={onClose} />

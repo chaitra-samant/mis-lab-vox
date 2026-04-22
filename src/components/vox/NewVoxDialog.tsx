@@ -340,7 +340,7 @@ export function NewVoxDialog({ onClose }: NewVoxDialogProps) {
             <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
               <div className="text-center">
                 <h3 className="text-lg font-semibold text-slate-900 mb-2">We might have an answer right now</h3>
-                <p className="text-sm text-slate-500 mb-8 mx-auto max-w-sm">Based on your description, this might instantly solve your problem without waiting for an agent.</p>
+                <p className="text-sm text-slate-500 mb-8 mx-auto max-w-sm">Based on your description, this might instantly solve your problem without waiting for an employee.</p>
                 
                 <div className="space-y-4 text-left mx-auto max-w-md">
                   {matchedSuggestions.map((suggestion, idx) => (

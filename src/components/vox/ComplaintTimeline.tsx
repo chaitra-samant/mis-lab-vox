@@ -68,7 +68,7 @@ export function ComplaintTimeline({ events }: ComplaintTimelineProps) {
                 {event.messages.map((msg, idx) => (
                   <div key={idx} className="text-sm">
                     <span className="font-medium text-slate-900 block mb-0.5">
-                      {msg.role === "employee" ? "Agent" : "You"} <span className="text-slate-400 font-normal text-xs ml-2">{new Date(msg.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      {msg.role === "employee" ? "Employee" : "You"} <span className="text-slate-400 font-normal text-xs ml-2">{new Date(msg.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </span>
                     <span className="text-slate-600 line-clamp-3">{msg.content}</span>
                   </div>

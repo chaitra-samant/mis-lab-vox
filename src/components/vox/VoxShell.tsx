@@ -40,7 +40,7 @@ const accentClasses = {
 
 const portals = [
   { to: "/customer", label: "Customer", icon: MessageSquare, accent: "blue" as const },
-  { to: "/agent", label: "Agent", icon: Inbox, accent: "indigo" as const },
+  { to: "/employee", label: "Employee", icon: Inbox, accent: "indigo" as const },
   { to: "/ceo", label: "Executive", icon: LineChart, accent: "violet" as const },
 ];
 

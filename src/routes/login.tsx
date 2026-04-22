@@ -20,7 +20,7 @@ export const Route = createFileRoute("/login")({
 
 const personas = [
   { label: "Customer", email: "rahul.sharma@gmail.com", to: "/customer" as const },
-  { label: "Agent", email: "priya@aurabank.in", to: "/agent" as const },
+  { label: "Employee", email: "priya@aurabank.in", to: "/employee" as const },
   { label: "CEO", email: "ceo@aurabank.in", to: "/ceo" as const },
 ];
 
@@ -49,15 +49,16 @@ function LoginPage() {
       // Mock flow
       const selectedPersona = personas.find(p => p.email === email);
       const role = selectedPersona?.label.toLowerCase();
+      const standardRole = role === "employee" ? "employee" : (role === "executive" ? "ceo" : role);
       
-      if (!role) {
+      if (!standardRole) {
         setErrorMsg("Please use one of the demo persona emails for mock login.");
         setLoading(false);
         return;
       }
       
-      localStorage.setItem("vox_mock_role", role === "executive" ? "ceo" : role);
-      navigate({ to: getRoleRedirectPath(role === "executive" ? "ceo" : role as any) });
+      localStorage.setItem("vox_mock_role", standardRole);
+      navigate({ to: getRoleRedirectPath(standardRole as any) });
       return;
     }
 

@@ -111,18 +111,18 @@ export function markComplaintFeedback(id: string, rating: number, comment: strin
 }
 
 // ============================================================
-// Agent Portal Mock Data (used in Phase 4 UI tests)
+// Employee Portal Mock Data (used in Phase 4 UI tests)
 // ============================================================
-export type AgentPriority = "P1" | "P2" | "P3";
-export type AgentSentiment = "Positive" | "Neutral" | "Negative";
-export type AgentStatus = "Open" | "In Review" | "In Progress" | "Resolved";
+export type EmployeePriority = "P1" | "P2" | "P3";
+export type EmployeeSentiment = "Positive" | "Neutral" | "Negative";
+export type EmployeeStatus = "Open" | "In Review" | "In Progress" | "Resolved";
 
-export interface AgentComplaint {
+export interface EmployeeComplaint {
   id: string;
   subject: string;
-  priority: AgentPriority;
-  sentiment: AgentSentiment;
-  status: AgentStatus;
+  priority: EmployeePriority;
+  sentiment: EmployeeSentiment;
+  status: EmployeeStatus;
   assignee: string;
   customer: string;
   account: string;
@@ -144,9 +144,9 @@ const SUBJECTS = [
   "Duplicate Charge on Account",
   "Account Freeze Without Notice",
 ];
-const PRIORITIES: AgentPriority[] = ["P1", "P2", "P3"];
-const SENTIMENTS: AgentSentiment[] = ["Positive", "Neutral", "Negative"];
-const STATUSES: AgentStatus[] = ["Open", "In Review", "In Progress", "Resolved"];
+const PRIORITIES: EmployeePriority[] = ["P1", "P2", "P3"];
+const SENTIMENTS: EmployeeSentiment[] = ["Positive", "Neutral", "Negative"];
+const STATUSES: EmployeeStatus[] = ["Open", "In Review", "In Progress", "Resolved"];
 const CHANNELS = ["Web", "Mobile", "Phone", "Email"];
 const ASSIGNEES = ["J. Morgan", "S. Okafor", "M. Bauer", "L. Kowalski", "Unassigned"];
 const CUSTOMERS = ["Alex Chen", "Riya Patel", "Daniel Reyes", "Hana Takeda", "Northwind LLC", "Marco Vidal", "Olivia Brand"];
@@ -159,7 +159,7 @@ function seededRandom(seed: number): () => number {
   };
 }
 
-function generateMockAgentComplaints(count: number): AgentComplaint[] {
+function generateMockEmployeeComplaints(count: number): EmployeeComplaint[] {
   const rand = seededRandom(42);
   return Array.from({ length: count }, (_, i) => {
     const idx = (n: number) => Math.floor(rand() * n);
@@ -175,12 +175,12 @@ function generateMockAgentComplaints(count: number): AgentComplaint[] {
       exposure: idx(2) === 0 ? `$${(idx(50) * 1000).toLocaleString()}` : "$0",
       channel: CHANNELS[idx(CHANNELS.length)],
       ts: `${idx(72) + 1}h ago`,
-      body: "Customer complaint details requiring agent review and resolution.",
+      body: "Customer complaint details requiring employee review and resolution.",
     };
   });
 }
 
-export const MOCK_AGENT_COMPLAINTS: AgentComplaint[] = generateMockAgentComplaints(100);
+export const MOCK_EMPLOYEE_COMPLAINTS: EmployeeComplaint[] = generateMockEmployeeComplaints(100);
 
 // ============================================================
 // CEO Portal Chart Data

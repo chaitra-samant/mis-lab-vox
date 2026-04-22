@@ -34,11 +34,11 @@ const portals = [
     desc: "Submit, track, and follow the resolution of every Vox you raise — with full transparency.",
   },
   {
-    to: "/agent",
-    label: "Agent",
+    to: "/employee",
+    label: "Employee",
     accent: "indigo" as const,
     icon: Inbox,
-    title: "Agent Workspace",
+    title: "Employee Workspace",
     desc: "A high-density worklist with sentiment, urgency, and SLA signals built-in.",
   },
   {
@@ -99,7 +99,7 @@ function LandingPage() {
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-balance text-base leading-relaxed text-slate-500 sm:text-lg">
             Vox transforms raw customer complaints into structured, actionable
-            intelligence — purpose-built for customer teams, agents, and the executive suite.
+            intelligence — purpose-built for customer teams, employees, and the executive suite.
           </p>
           <div className="mt-10 flex items-center justify-center gap-3">
             <VoxButton size="lg" asChild>
@@ -177,9 +177,8 @@ function LandingPage() {
               desc: "Sentiment, urgency, and root-cause clustering surface what matters.",
             },
             {
-              icon: Inbox,
               title: "Workflow that disappears",
-              desc: "Agents resolve more — Vox handles triage, routing, and SLA tracking.",
+              desc: "Employees resolve more — Vox handles triage, routing, and SLA tracking.",
             },
           ].map((f) => (
             <div key={f.title}>
