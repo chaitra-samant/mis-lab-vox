@@ -97,12 +97,12 @@ CREATE POLICY "complaints_employee_dept" ON public.complaints
     AND department = get_employee_department()
   );
 
--- Employee: can update complaints assigned to them
+-- Employee: can update complaints in their department
 DROP POLICY IF EXISTS "complaints_employee_update" ON public.complaints;
 CREATE POLICY "complaints_employee_update" ON public.complaints
   FOR UPDATE USING (
     get_user_role() = 'employee'
-    AND assigned_to = get_employee_id()
+    AND department = get_employee_department()
   );
 
 -- CEO: all complaints

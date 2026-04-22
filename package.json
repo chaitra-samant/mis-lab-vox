@@ -12,7 +12,11 @@
     "format": "prettier --write .",
     "db:setup": "node scripts/setup-db.js",
     "test:phase1": "tsx tests/phase1.test.ts",
-    "test:phase1:watch": "tsx watch tests/phase1.test.ts"
+    "test:phase1:watch": "tsx watch tests/phase1.test.ts",
+    "test:phase2": "tsx tests/phase2.test.ts",
+    "test:phase2:watch": "tsx watch tests/phase2.test.ts",
+    "test:phase3": "cd ai && set PYTHONPATH=. && .\\venv\\Scripts\\pytest tests\\test_ai.py",
+    "test:phase3:watch": "cd ai && set PYTHONPATH=. && .\\venv\\Scripts\\pytest tests\\test_ai.py -f"
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.25.5",
