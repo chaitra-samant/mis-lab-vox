@@ -86,7 +86,7 @@ function AgentPortal() {
   const queryClient = useQueryClient();
   const { data: complaints = [], isLoading } = useQuery({
     queryKey: ["complaints", "agent"],
-    queryFn: () => getComplaints("employee"),
+    queryFn: () => getComplaints({ data: "employee" }),
   });
 
   // Real-time subscription

@@ -1,5 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
-import { supabase } from "../supabase";
+import { supabase, supabaseAdmin } from "../supabase";
+
+const useAdmin = process.env.VITE_USE_MOCK_AUTH === "true";
+const client = useAdmin ? supabaseAdmin : supabase;
 
 /**
  * CCIS — Phase 3 Server Functions (Employee Portal)
@@ -16,7 +19,7 @@ const MOCK_ROLE = "employee";
 export const getDepartmentQueue = createServerFn({ method: "GET" }).handler(async () => {
   console.log("Fetching queue for department:", MOCK_DEPARTMENT);
   
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from("complaints")
     .select("*")
     .eq("department", MOCK_DEPARTMENT)
@@ -30,10 +33,13 @@ export const getDepartmentQueue = createServerFn({ method: "GET" }).handler(asyn
   return data;
 });
 
-export const getComplaintDetails = createServerFn({ method: "GET" }).handler(async ({ data: query }: { data: { id: string } }) => {
-  console.log("Fetching details for complaint:", query.id);
+export const getComplaintDetails = createServerFn({ method: "GET" })
+  .handler(async (args: any) => {
+    const query = args?.data || args;
+    if (!query?.id) throw new Error("Complaint ID is required");
+    console.log("Fetching details for complaint:", query.id);
   
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from("complaints")
     .select(`
       *,
@@ -51,10 +57,13 @@ export const getComplaintDetails = createServerFn({ method: "GET" }).handler(asy
   return data;
 });
 
-export const claimComplaint = createServerFn({ method: "POST" }).handler(async ({ data: payload }: { data: { id: string } }) => {
-  console.log("Claiming complaint:", payload.id);
+export const claimComplaint = createServerFn({ method: "POST" })
+  .handler(async (args: any) => {
+    const payload = args?.data || args;
+    if (!payload?.id) throw new Error("Complaint ID is required");
+    console.log("Claiming complaint:", payload.id);
   
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from("complaints")
     .update({
       assigned_to: MOCK_EMPLOYEE_ID,
@@ -73,8 +82,11 @@ export const claimComplaint = createServerFn({ method: "POST" }).handler(async (
   return data;
 });
 
-export const updateComplaintStatus = createServerFn({ method: "POST" }).handler(async ({ data: payload }: { data: { id: string; status: string; resolutionNote?: string } }) => {
-  console.log("Updating status for:", payload.id, "to", payload.status);
+export const updateComplaintStatus = createServerFn({ method: "POST" })
+  .handler(async (args: any) => {
+    const payload = args?.data || args;
+    if (!payload?.id) throw new Error("Complaint ID is required");
+    console.log("Updating status for:", payload.id, "to", payload.status);
   
   const updateData: any = {
     status: payload.status,
@@ -89,7 +101,7 @@ export const updateComplaintStatus = createServerFn({ method: "POST" }).handler(
     updateData.resolution_note = payload.resolutionNote;
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from("complaints")
     .update(updateData)
     .eq("id", payload.id)
@@ -104,10 +116,13 @@ export const updateComplaintStatus = createServerFn({ method: "POST" }).handler(
   return data;
 });
 
-export const addMessage = createServerFn({ method: "POST" }).handler(async ({ data: payload }: { data: { complaint_id: string; message_text: string; visible_to_customer: boolean } }) => {
-  console.log("Adding message to complaint:", payload.complaint_id);
+export const addMessage = createServerFn({ method: "POST" })
+  .handler(async (args: any) => {
+    const payload = args?.data || args;
+    if (!payload?.complaint_id) throw new Error("Complaint ID is required");
+    console.log("Adding message to complaint:", payload.complaint_id);
   
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from("messages")
     .insert([
       {
@@ -129,10 +144,13 @@ export const addMessage = createServerFn({ method: "POST" }).handler(async ({ da
   return data;
 });
 
-export const escalateComplaint = createServerFn({ method: "POST" }).handler(async ({ data: payload }: { data: { id: string; reason: string } }) => {
-  console.log("Escalating complaint:", payload.id);
+export const escalateComplaint = createServerFn({ method: "POST" })
+  .handler(async (args: any) => {
+    const payload = args?.data || args;
+    if (!payload?.id) throw new Error("Complaint ID is required");
+    console.log("Escalating complaint:", payload.id);
   
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from("complaints")
     .update({
       escalated: true,
@@ -150,7 +168,7 @@ export const escalateComplaint = createServerFn({ method: "POST" }).handler(asyn
   }
   
   // Create audit log for escalation
-  await supabase.from("audit_logs").insert([
+  await client.from("audit_logs").insert([
     {
       actor_id: MOCK_EMPLOYEE_ID,
       actor_role: MOCK_ROLE,

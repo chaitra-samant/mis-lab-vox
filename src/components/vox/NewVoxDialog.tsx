@@ -85,7 +85,7 @@ export function NewVoxDialog({ onClose }: NewVoxDialogProps) {
     const foundKeywords = commonKeywords.filter(k => description.toLowerCase().includes(k));
     
     if (foundKeywords.length > 0) {
-      const results = await getSuggestions({ keywords: foundKeywords });
+      const results = await getSuggestions({ data: { keywords: foundKeywords } });
       setMatchedSuggestions(results);
     }
   };

@@ -12,6 +12,7 @@ export interface AIAnalysisResult {
   sentiment: 'Positive' | 'Neutral' | 'Negative';
   sentiment_score: number;
   summary: string;
+  department: string;
   financial_loss_estimate: number | null;
 }
 
@@ -47,6 +48,7 @@ export async function analyzeComplaint(text: string, category?: string): Promise
       sentiment: 'Neutral',
       sentiment_score: 0.5,
       summary: text.slice(0, 100) + '...',
+      department: 'Operations',
       financial_loss_estimate: null,
     };
   }

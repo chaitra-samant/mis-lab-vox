@@ -15,6 +15,7 @@ class ComplaintAnalysis(BaseModel):
     sentiment: str
     sentiment_score: float
     summary: str
+    department: str
     financial_loss_estimate: Optional[float] = None
 
 @app.post("/analyze", response_model=ComplaintAnalysis)

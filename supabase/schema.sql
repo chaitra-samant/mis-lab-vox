@@ -33,8 +33,8 @@ CREATE TABLE IF NOT EXISTS public.employees (
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   name        TEXT NOT NULL,
   email       TEXT NOT NULL UNIQUE,
-  department  TEXT NOT NULL CHECK (department IN ('IT', 'Finance', 'Operations', 'Cards', 'Loans')),
-  role        TEXT NOT NULL DEFAULT 'agent' CHECK (role IN ('agent', 'senior_agent')),
+  department  TEXT NOT NULL,
+  role        TEXT NOT NULL DEFAULT 'agent',
   is_ceo      BOOLEAN NOT NULL DEFAULT FALSE
 );
 
@@ -46,17 +46,17 @@ CREATE TABLE IF NOT EXISTS public.complaints (
   created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   customer_id             UUID NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
-  category                TEXT NOT NULL CHECK (category IN ('Billing', 'Technical', 'Service', 'Cards', 'Loans', 'KYC', 'Other')),
+  category                TEXT NOT NULL,
   subcategory             TEXT,
   description             TEXT NOT NULL,
   product                 TEXT,              -- e.g. "AuraBank Platinum Credit Card", "UPI", "FD Account"
   attachment_urls         TEXT[],
-  preferred_resolution    TEXT NOT NULL CHECK (preferred_resolution IN ('Refund', 'Replacement', 'Apology', 'Waiver', 'Other')),
+  preferred_resolution    TEXT NOT NULL,
   financial_loss_customer NUMERIC(12,2),
   financial_loss_ai       NUMERIC(12,2),
-  status                  TEXT NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN', 'IN_PROGRESS', 'ESCALATED', 'RESOLVED', 'CLOSED')),
-  priority                TEXT NOT NULL DEFAULT 'MEDIUM' CHECK (priority IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')),
-  department              TEXT CHECK (department IN ('IT', 'Finance', 'Operations', 'Cards', 'Loans')),
+  status                  TEXT NOT NULL DEFAULT 'OPEN',
+  priority                TEXT NOT NULL DEFAULT 'MEDIUM',
+  department              TEXT,
   assigned_to             UUID REFERENCES public.employees(id),
   sla_deadline            TIMESTAMPTZ,
   escalated               BOOLEAN NOT NULL DEFAULT FALSE,
@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS public.messages (
   created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   complaint_id        UUID NOT NULL REFERENCES public.complaints(id) ON DELETE CASCADE,
   sender_id           UUID NOT NULL,       -- customer.id, employee.id, or CEO employee.id
-  sender_role         TEXT NOT NULL CHECK (sender_role IN ('customer', 'employee', 'ceo')),
+  sender_role         TEXT NOT NULL,
   message_text        TEXT NOT NULL,
   visible_to_customer BOOLEAN NOT NULL DEFAULT TRUE
 );
@@ -90,9 +90,9 @@ CREATE TABLE IF NOT EXISTS public.ai_analyses (
   created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   complaint_id          UUID NOT NULL UNIQUE REFERENCES public.complaints(id) ON DELETE CASCADE,
-  sentiment             TEXT CHECK (sentiment IN ('Positive', 'Neutral', 'Negative')),
-  sentiment_score       NUMERIC(4,3) CHECK (sentiment_score >= 0 AND sentiment_score <= 1),
-  urgency               TEXT CHECK (urgency IN ('Low', 'Medium', 'High', 'Critical')),
+  sentiment             TEXT,
+  sentiment_score       NUMERIC(4,3),
+  urgency               TEXT,
   classification        TEXT,
   summary               TEXT,
   suggested_response    TEXT,
@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
   id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   actor_id      UUID NOT NULL,
-  actor_role    TEXT NOT NULL CHECK (actor_role IN ('customer', 'employee', 'ceo', 'system')),
+  actor_role    TEXT NOT NULL,
   action        TEXT NOT NULL,   -- e.g. 'status_change', 'escalation', 'message_sent'
   resource_type TEXT NOT NULL,   -- e.g. 'complaint', 'api_key'
   resource_id   UUID,

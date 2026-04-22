@@ -9,17 +9,30 @@ import { analyzeComplaint } from "./ai";
  * and integrate with the AI Microservice.
  */
 
-export const getComplaints = createServerFn({ method: "GET" }).handler(async ({ data: role }: { data?: string }) => {
-  return _getComplaints(role);
-});
+export const getComplaints = createServerFn({ method: "GET" })
+  .handler(async (args: any) => {
+    const role = args?.data || args;
+    return _getComplaints(role);
+  });
 
 export async function _getComplaints(role?: string) {
   console.log("Fetching complaints for role:", role);
   
-  let query = supabase
+  // When mock auth is on, we use supabaseAdmin to bypass RLS 
+  // since the user isn't actually logged into Supabase.
+  const useAdmin = process.env.VITE_USE_MOCK_AUTH === "true";
+  const client = useAdmin ? supabaseAdmin : supabase;
+  
+  let query = client
     .from("complaints")
     .select("*, ai_analyses(*)")
     .order("created_at", { ascending: false });
+
+  // If it's the customer portal and we're using mock auth, 
+  // filter by the default mock customer ID.
+  if (useAdmin && (!role || role === "customer")) {
+    query = query.eq("customer_id", "c0000001-0000-0000-0000-000000000001");
+  }
 
   const { data, error } = await query;
 
@@ -38,11 +51,14 @@ export const getCEOMetrics = createServerFn({ method: "GET" }).handler(async () 
 export async function _getCEOMetrics() {
   console.log("Fetching CEO metrics...");
   
-  const { count: totalVolume } = await supabase
+  const useAdmin = process.env.VITE_USE_MOCK_AUTH === "true";
+  const client = useAdmin ? supabaseAdmin : supabase;
+
+  const { count: totalVolume } = await client
     .from("complaints")
     .select("*", { count: "exact", head: true });
 
-  const { data: sentimentData } = await supabase
+  const { data: sentimentData } = await client
     .from("ai_analyses")
     .select("sentiment");
     
@@ -51,7 +67,7 @@ export async function _getCEOMetrics() {
     ? (negativeCount / sentimentData.length) * 100 
     : 0;
 
-  const { data: exposureData } = await supabase
+  const { data: exposureData } = await client
     .from("complaints")
     .select("financial_loss_customer");
     
@@ -65,15 +81,42 @@ export async function _getCEOMetrics() {
   };
 }
 
-export const submitComplaint = createServerFn({ method: "POST" }).handler(async ({ data: payload }: { data: any }) => {
-  return _submitComplaint(payload);
-});
+export const submitComplaint = createServerFn({ method: "POST" })
+  .handler(async (args: any) => {
+    // TanStack Start might pass the data directly or wrap it in a 'data' property
+    const payload = args?.data || (args && Object.keys(args).length > 0 ? args : null);
+    
+    if (!payload) {
+      console.error("submitComplaint: Payload is missing. Received args:", args);
+      throw new Error("Payload is required");
+    }
+    
+    console.log("submitComplaint: Processing payload:", payload);
+    return _submitComplaint(payload);
+  });
 
 export async function _submitComplaint(payload: any) {
   console.log("Submitting new complaint:", payload);
   
   const { customer_id, ...rest } = payload;
-  const finalCustomerId = customer_id || "c0000001-0000-0000-0000-000000000001";
+  let finalCustomerId = customer_id;
+
+  // Resolve auth_id to public customer id if needed
+  if (customer_id) {
+    const { data: customer } = await supabaseAdmin
+      .from("customers")
+      .select("id")
+      .or(`id.eq.${customer_id},auth_id.eq.${customer_id}`)
+      .maybeSingle();
+    
+    if (customer) {
+      finalCustomerId = customer.id;
+    }
+  }
+
+  if (!finalCustomerId) {
+    finalCustomerId = "c0000001-0000-0000-0000-000000000001";
+  }
 
   const { data: complaint, error: complaintError } = await supabaseAdmin
     .from("complaints")
@@ -119,7 +162,10 @@ export async function _submitComplaint(payload: any) {
     
     await supabaseAdmin
       .from("complaints")
-      .update({ priority: priorityMap[aiResult.urgency] || 'MEDIUM' })
+      .update({ 
+        priority: priorityMap[aiResult.urgency] || 'MEDIUM',
+        department: aiResult.department || 'Operations'
+      })
       .eq('id', complaint.id);
 
   } catch (aiError) {
@@ -129,28 +175,45 @@ export async function _submitComplaint(payload: any) {
   return complaint;
 }
 
-export const getSuggestions = createServerFn({ method: "GET" }).handler(async ({ data: query }: { data: { keywords: string[] } }) => {
-  console.log("Fetching suggestions for keywords:", query.keywords);
-  
-  // keyword matching logic: check if any of the provided keywords match the FAQ keywords array
-  // Using 'overlaps' operator (&&) for arrays
-  const { data, error } = await supabase
-    .from("faqs")
-    .select("*")
-    .overlaps("keywords", query.keywords);
+export const getSuggestions = createServerFn({ method: "GET" })
+  .handler(async (args: any) => {
+    const data = args?.data || args;
+    if (!data?.keywords) {
+      console.warn("getSuggestions called without keywords");
+      return [];
+    }
+    
+    console.log("Fetching suggestions for keywords:", data.keywords);
+    
+    const useAdmin = process.env.VITE_USE_MOCK_AUTH === "true";
+    const client = useAdmin ? supabaseAdmin : supabase;
+    
+    const { data: faqs, error } = await client
+      .from("faqs")
+      .select("*")
+      .overlaps("keywords", data.keywords);
 
-  if (error) {
-    console.error("Error fetching suggestions:", error);
-    throw new Error(error.message);
-  }
-  
-  return data;
-});
+    if (error) {
+      console.error("Error fetching suggestions:", error);
+      throw new Error(error.message);
+    }
+    
+    return faqs || [];
+  });
 
-export const submitFeedback = createServerFn({ method: "POST" }).handler(async ({ data: payload }: { data: { id: string; rating: number; text: string } }) => {
-  console.log("Submitting feedback for complaint:", payload.id);
+export const submitFeedback = createServerFn({ method: "POST" })
+  .handler(async (args: any) => {
+    const payload = args?.data || (args && Object.keys(args).length > 0 ? args : null);
+    
+    if (!payload?.id) {
+      console.error("submitFeedback: Complaint ID is required. Received args:", args);
+      throw new Error("Complaint ID is required for feedback");
+    }
   
-  const { data, error } = await supabase
+  const useAdmin = process.env.VITE_USE_MOCK_AUTH === "true";
+  const client = useAdmin ? supabaseAdmin : supabase;
+
+  const { data, error } = await client
     .from("complaints")
     .update({
       feedback_rating: payload.rating,

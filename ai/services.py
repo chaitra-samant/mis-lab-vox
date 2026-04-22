@@ -30,7 +30,7 @@ def analyze_complaint_pipeline(text: str, category_hint: str = None) -> dict:
     
     llm = get_llm()
     prompt = PromptTemplate.from_template(
-        "Analyze this bank complaint. Return ONLY valid JSON with keys: category, urgency, sentiment, sentiment_score, summary, financial_loss_estimate. Complaint: {text}"
+        "Analyze this bank complaint. Return ONLY valid JSON with keys: category, department, urgency, sentiment, sentiment_score, summary, financial_loss_estimate. Departments must be one of: IT, Finance, Operations, Cards, Loans. Complaint: {text}"
     )
     
     chain = prompt | llm | StrOutputParser()
@@ -48,6 +48,7 @@ def analyze_complaint_pipeline(text: str, category_hint: str = None) -> dict:
         data = json.loads(response)
         return {
             "category": data.get("category", "General"),
+            "department": data.get("department", "Operations"),
             "urgency": data.get("urgency", "Medium"),
             "sentiment": data.get("sentiment", "Neutral"),
             "sentiment_score": float(data.get("sentiment_score", 0.0)),
@@ -75,6 +76,7 @@ def fallback_analysis(text: str):
         
     return {
         "category": "Billing",
+        "department": "Finance",
         "urgency": "Medium",
         "sentiment": "Neutral",
         "sentiment_score": 0.0,
