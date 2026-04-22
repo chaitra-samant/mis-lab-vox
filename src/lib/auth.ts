@@ -4,7 +4,7 @@ export type UserRole = "customer" | "employee" | "ceo";
 
 export async function getSession() {
   if (import.meta.env.VITE_USE_MOCK_AUTH === "true") {
-    const mockRole = localStorage.getItem("vox_mock_role") as UserRole | null;
+    const mockRole = typeof window !== "undefined" ? localStorage.getItem("vox_mock_role") as UserRole | null : null;
     if (mockRole) {
       return { user: { id: "mock-user", user_metadata: { role: mockRole } } };
     }
@@ -30,7 +30,9 @@ export async function getUserRole(): Promise<UserRole | null> {
 
 export async function signOut() {
   if (import.meta.env.VITE_USE_MOCK_AUTH === "true") {
-    localStorage.removeItem("vox_mock_role");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("vox_mock_role");
+    }
     return;
   }
   await supabase.auth.signOut();

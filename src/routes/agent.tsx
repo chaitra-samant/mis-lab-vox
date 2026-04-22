@@ -15,13 +15,18 @@ import {
   ChevronRight,
   Layers,
   BarChart3,
+  DollarSign,
 } from "lucide-react";
 import { VoxShell } from "@/components/vox/VoxShell";
 import { VoxCard } from "@/components/vox/VoxCard";
 import { VoxButton } from "@/components/vox/VoxButton";
 import { VoxBadge } from "@/components/vox/VoxBadge";
 import { cn } from "@/lib/utils";
-import { MOCK_AGENT_COMPLAINTS, type AgentComplaint, type AgentPriority, type AgentSentiment, type AgentStatus } from "@/lib/mock";
+import { MOCK_AGENT_COMPLAINTS, type AgentPriority, type AgentSentiment, type AgentStatus } from "@/lib/mock";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getComplaints } from "@/lib/server/complaints";
+import { supabase } from "@/lib/supabase";
+import { useEffect } from "react";
 
 export const Route = createFileRoute("/agent")({
   beforeLoad: async () => {
@@ -45,52 +50,103 @@ export const Route = createFileRoute("/agent")({
   component: AgentPortal,
 });
 
-
-type Priority = AgentPriority;
+type Priority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 type Sentiment = AgentSentiment;
-type Status = AgentStatus;
-type Vox = AgentComplaint;
+type Status = "Open" | "In progress" | "Escalated" | "Resolved" | "Closed";
 
-const data: Vox[] = MOCK_AGENT_COMPLAINTS;
-
-const priorities: Priority[] = ["P1", "P2", "P3"];
+const priorities: Priority[] = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
 const sentiments: Sentiment[] = ["Positive", "Neutral", "Negative"];
-const statuses: Status[] = ["Open", "In Review", "In Progress", "Resolved"];
+const statuses: Status[] = ["Open", "In progress", "Escalated", "Resolved", "Closed"];
 
-const priorityTone: Record<Priority, "p1" | "p2" | "p3"> = { P1: "p1", P2: "p2", P3: "p3" };
+const priorityTone: Record<Priority, "p1" | "p2" | "p3"> = {
+  LOW: "p3",
+  MEDIUM: "p2",
+  HIGH: "p1",
+  CRITICAL: "p1",
+};
+
 const sentimentTone: Record<Sentiment, "positive" | "neutral" | "negative"> = {
   Positive: "positive",
   Neutral: "neutral",
   Negative: "negative",
 };
+
 const statusTone: Record<Status, "open" | "review" | "progress" | "resolved"> = {
   Open: "open",
-  "In Review": "review",
-  "In Progress": "progress",
+  "In progress": "progress",
+  Escalated: "review",
   Resolved: "resolved",
+  Closed: "resolved",
 };
 
 const PAGE_SIZE = 10;
 
+
 function AgentPortal() {
+  const queryClient = useQueryClient();
+  const { data: complaints = [], isLoading } = useQuery({
+    queryKey: ["complaints", "agent"],
+    queryFn: () => getComplaints("employee"),
+  });
+
+  // Real-time subscription
+  useEffect(() => {
+    const channel = supabase
+      .channel("agent-complaints")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "complaints" },
+        () => {
+          console.log("Real-time update: Refreshing complaints...");
+          queryClient.invalidateQueries({ queryKey: ["complaints"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
   const [q, setQ] = useState("");
   const [priority, setPriority] = useState<Priority | "All">("All");
   const [sentiment, setSentiment] = useState<Sentiment | "All">("All");
   const [status, setStatus] = useState<Status | "All">("All");
-  const [active, setActive] = useState<Vox | null>(null);
+  const [active, setActive] = useState<any | null>(null);
   const [page, setPage] = useState(1);
+
+  const complaintsArray = Array.isArray(complaints) ? complaints : [];
+
+  // Map Supabase data to Vox type
+  const mappedData = useMemo(() => {
+    return complaintsArray.map((c: any) => ({
+      id: c.id.split("-")[0].toUpperCase(),
+      realId: c.id,
+      subject: c.description.slice(0, 50) + (c.description.length > 50 ? "..." : ""),
+      priority: (c.priority || "MEDIUM") as Priority,
+      sentiment: (c.ai_analyses?.[0]?.sentiment || "Neutral") as Sentiment,
+      status: (c.status.charAt(0) + c.status.slice(1).toLowerCase().replace("_", " ")) as Status,
+      assignee: c.assigned_to || "Unassigned",
+      customer: "Customer", // In a real app, join with customers table
+      account: "AuraBank Account",
+      exposure: c.financial_loss_customer ? `₹${c.financial_loss_customer}` : "₹0",
+      channel: c.source === "web_form" ? "Web" : "API",
+      ts: new Date(c.created_at).toLocaleString(),
+      body: c.description,
+      aiAnalysis: c.ai_analyses?.[0]
+    }));
+  }, [complaintsArray]);
 
   const filtered = useMemo(() => {
     setPage(1);
-    return data.filter((v) => {
+    return mappedData.filter((v: any) => {
       if (priority !== "All" && v.priority !== priority) return false;
       if (sentiment !== "All" && v.sentiment !== sentiment) return false;
       if (status !== "All" && v.status !== status) return false;
-      if (q && !`${v.id} ${v.subject} ${v.customer}`.toLowerCase().includes(q.toLowerCase())) return false;
+      if (q && !`${v.id} ${v.subject}`.toLowerCase().includes(q.toLowerCase())) return false;
       return true;
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, priority, sentiment, status]);
+  }, [q, priority, sentiment, status, mappedData]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -115,18 +171,12 @@ function AgentPortal() {
               Incoming Voxes
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              {filtered.length} of {data.length} shown · sorted by priority then time
+              {filtered.length} of {mappedData.length} shown · sorted by priority then time
             </p>
           </div>
           <div className="flex items-center gap-2">
             <VoxBadge tone="p1" dot>
-              {data.filter((d) => d.priority === "P1").length} P1
-            </VoxBadge>
-            <VoxBadge tone="p2" dot>
-              {data.filter((d) => d.priority === "P2").length} P2
-            </VoxBadge>
-            <VoxBadge tone="p3" dot>
-              {data.filter((d) => d.priority === "P3").length} P3
+              {mappedData.filter((d: any) => d.priority === "HIGH" || d.priority === "CRITICAL").length} High/Critical
             </VoxBadge>
           </div>
         </div>
@@ -339,16 +389,32 @@ function VoxDetailSheet({ vox, onClose }: { vox: Vox; onClose: () => void }) {
             <div className="text-xs font-medium uppercase tracking-wider text-slate-500">
               AI signals
             </div>
-            <ul className="mt-2 space-y-2 text-sm">
-              <li className="flex items-start gap-2 text-slate-700">
-                <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-600" />
-                Cluster match: 7 similar Voxes opened in last 24h
-              </li>
-              <li className="flex items-start gap-2 text-slate-700">
-                <ArrowUpRight className="mt-0.5 h-4 w-4 text-indigo-600" />
-                Suggested route: Treasury Operations · Tier 2
-              </li>
-            </ul>
+            {vox.aiAnalysis ? (
+              <div className="mt-3 space-y-4">
+                <div className="rounded-md border border-slate-100 bg-slate-50 p-3">
+                  <div className="text-[10px] font-bold uppercase tracking-tight text-slate-400">AI Summary</div>
+                  <p className="mt-1 text-sm text-slate-700 leading-snug">{vox.aiAnalysis.summary}</p>
+                </div>
+                <ul className="space-y-2 text-sm">
+                  <li className="flex items-start gap-2 text-slate-700">
+                    <AlertTriangle className={cn("mt-0.5 h-4 w-4", vox.aiAnalysis.urgency === 'Critical' || vox.aiAnalysis.urgency === 'High' ? "text-rose-600" : "text-amber-600")} />
+                    <span>Urgency: <span className="font-semibold">{vox.aiAnalysis.urgency}</span></span>
+                  </li>
+                  <li className="flex items-start gap-2 text-slate-700">
+                    <ArrowUpRight className="mt-0.5 h-4 w-4 text-indigo-600" />
+                    <span>Suggested Classification: <span className="font-semibold">{vox.aiAnalysis.classification}</span></span>
+                  </li>
+                  {vox.aiAnalysis.financial_loss_estimate && (
+                    <li className="flex items-start gap-2 text-slate-700">
+                      <DollarSign className="mt-0.5 h-4 w-4 text-emerald-600" />
+                      <span>Estimated Loss: <span className="font-semibold">₹{vox.aiAnalysis.financial_loss_estimate}</span></span>
+                    </li>
+                  )}
+                </ul>
+              </div>
+            ) : (
+              <p className="mt-2 text-xs text-slate-400 italic">No AI analysis available yet.</p>
+            )}
           </div>
         </div>
 

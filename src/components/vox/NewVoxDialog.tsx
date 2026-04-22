@@ -55,9 +55,9 @@ export function NewVoxDialog({ onClose }: NewVoxDialogProps) {
   const [matchedSuggestions, setMatchedSuggestions] = useState<any[]>([]);
 
   const mutation = useMutation({
-    mutationFn: (payload: any) => submitComplaint(payload),
+    mutationFn: (payload: any) => submitComplaint({ data: payload }),
     onSuccess: (data) => {
-      setSubmittedId(data.id);
+      setSubmittedId(data?.id);
       queryClient.invalidateQueries({ queryKey: ["complaints"] });
       setIsSubmitting(false);
     },
@@ -140,11 +140,11 @@ export function NewVoxDialog({ onClose }: NewVoxDialogProps) {
   const submit = async () => {
     setIsSubmitting(true);
     
-    // 1. Upload files first (optional, we could also do it after getting ID)
-    // We'll do it after if we want to use the ID as folder name, or before if we have a temp ID.
-    // Let's get the ID from the server first by submitting without attachments, then update.
-    // Actually, let's just submit with a placeholder and update later or just use a random folder.
-    
+    // 1. Get current session to use real customer_id if available
+    const { data: { session } } = await supabase.auth.getSession();
+    const customer_id = session?.user?.id; // In Phase 1 trigger, this auth.id maps to customer.auth_id
+
+    // 2. Upload files
     const tempId = Math.random().toString(36).substring(7);
     const attachmentUrls = await uploadFiles(tempId);
 
@@ -152,9 +152,10 @@ export function NewVoxDialog({ onClose }: NewVoxDialogProps) {
       category,
       product,
       description,
-      preferred_resolution: preferredResolution,
+      preferred_resolution: preferredResolution || "Other",
       financial_loss_customer: financialLoss ? parseFloat(financialLoss) : null,
       attachment_urls: attachmentUrls,
+      customer_id: customer_id, // backend will handle mapping if it's auth_id
     });
   };
 

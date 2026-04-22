@@ -21,14 +21,34 @@ afterAll(() => {
   console.error = originalError;
 });
 
+import * as fs from 'fs'
+import * as path from 'path'
+
+// Load real env vars if they exist
+const envPath = path.resolve('.env.local')
+const realEnv: Record<string, string> = {}
+if (fs.existsSync(envPath)) {
+  const envContent = fs.readFileSync(envPath, 'utf8')
+  envContent.split(/\r?\n/).forEach(line => {
+    const trimmedLine = line.trim()
+    if (!trimmedLine || trimmedLine.startsWith('#')) return
+    const [key, ...valueParts] = trimmedLine.split('=')
+    if (key && valueParts.length > 0) {
+      realEnv[key.trim()] = valueParts.join('=').trim()
+    }
+  })
+}
+
+// Set process.env for service role
+process.env.SUPABASE_SERVICE_ROLE_KEY = realEnv['SUPABASE_SERVICE_ROLE_KEY'] || realEnv['VITE_SUPABASE_SERVICE_ROLE_KEY']
+
 // Mock import.meta.env for all tests
 Object.defineProperty(globalThis, "import", {
   value: {
     meta: {
       env: {
+        ...realEnv,
         VITE_USE_MOCK_AUTH: "true",
-        VITE_SUPABASE_URL: "http://localhost:54321",
-        VITE_SUPABASE_ANON_KEY: "mock-anon-key",
         MODE: "test",
         DEV: true,
         PROD: false,

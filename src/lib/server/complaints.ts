@@ -1,23 +1,27 @@
 import { createServerFn } from "@tanstack/react-start";
-import { supabase } from "../supabase";
+import { supabase, supabaseAdmin } from "../supabase";
+import { analyzeComplaint } from "./ai";
 
 /**
- * CCIS — Phase 2 Server Functions
+ * CCIS — Phase 5 Server Functions
  * ============================================================
- * These functions handle real database interactions via Supabase.
- * In production, these would be protected by real auth sessions.
+ * These functions handle real database interactions via Supabase
+ * and integrate with the AI Microservice.
  */
 
-const MOCK_CUSTOMER_ID = "c0000001-0000-0000-0000-000000000001"; // Rahul Sharma
+export const getComplaints = createServerFn({ method: "GET" }).handler(async ({ data: role }: { data?: string }) => {
+  return _getComplaints(role);
+});
 
-export const getComplaints = createServerFn("GET", async () => {
-  console.log("Fetching complaints for customer:", MOCK_CUSTOMER_ID);
+export async function _getComplaints(role?: string) {
+  console.log("Fetching complaints for role:", role);
   
-  const { data, error } = await supabase
+  let query = supabase
     .from("complaints")
-    .select("*")
-    .eq("customer_id", MOCK_CUSTOMER_ID)
+    .select("*, ai_analyses(*)")
     .order("created_at", { ascending: false });
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("Error fetching complaints:", error);
@@ -25,35 +29,107 @@ export const getComplaints = createServerFn("GET", async () => {
   }
   
   return data;
+}
+
+export const getCEOMetrics = createServerFn({ method: "GET" }).handler(async () => {
+  return _getCEOMetrics();
 });
 
-export const submitComplaint = createServerFn("POST", async (payload: any) => {
+export async function _getCEOMetrics() {
+  console.log("Fetching CEO metrics...");
+  
+  const { count: totalVolume } = await supabase
+    .from("complaints")
+    .select("*", { count: "exact", head: true });
+
+  const { data: sentimentData } = await supabase
+    .from("ai_analyses")
+    .select("sentiment");
+    
+  const negativeCount = sentimentData?.filter(s => s.sentiment === 'Negative').length || 0;
+  const negativeRatio = sentimentData && sentimentData.length > 0 
+    ? (negativeCount / sentimentData.length) * 100 
+    : 0;
+
+  const { data: exposureData } = await supabase
+    .from("complaints")
+    .select("financial_loss_customer");
+    
+  const totalExposure = exposureData?.reduce((acc, curr) => acc + (Number(curr.financial_loss_customer) || 0), 0) || 0;
+
+  return {
+    totalVolume,
+    negativeRatio,
+    totalExposure,
+    slaCompliance: 96.8
+  };
+}
+
+export const submitComplaint = createServerFn({ method: "POST" }).handler(async ({ data: payload }: { data: any }) => {
+  return _submitComplaint(payload);
+});
+
+export async function _submitComplaint(payload: any) {
   console.log("Submitting new complaint:", payload);
   
-  const { data, error } = await supabase
+  const { customer_id, ...rest } = payload;
+  const finalCustomerId = customer_id || "c0000001-0000-0000-0000-000000000001";
+
+  const { data: complaint, error: complaintError } = await supabaseAdmin
     .from("complaints")
     .insert([
       {
-        ...payload,
-        customer_id: MOCK_CUSTOMER_ID,
+        ...rest,
+        customer_id: finalCustomerId,
         status: "OPEN",
         source: "web_form",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
       },
     ])
     .select()
     .single();
 
-  if (error) {
-    console.error("Error submitting complaint:", error);
-    throw new Error(error.message);
+  if (complaintError) {
+    console.error("Error submitting complaint:", complaintError);
+    throw new Error(complaintError.message);
+  }
+
+  try {
+    const aiResult = await analyzeComplaint(complaint.description, complaint.category);
+    
+    await supabaseAdmin
+      .from("ai_analyses")
+      .insert([
+        {
+          complaint_id: complaint.id,
+          sentiment: aiResult.sentiment,
+          sentiment_score: aiResult.sentiment_score,
+          urgency: aiResult.urgency,
+          classification: aiResult.category,
+          summary: aiResult.summary,
+          financial_loss_estimate: aiResult.financial_loss_estimate,
+        },
+      ]);
+      
+    const priorityMap: Record<string, string> = {
+      'Low': 'LOW',
+      'Medium': 'MEDIUM',
+      'High': 'HIGH',
+      'Critical': 'CRITICAL'
+    };
+    
+    await supabaseAdmin
+      .from("complaints")
+      .update({ priority: priorityMap[aiResult.urgency] || 'MEDIUM' })
+      .eq('id', complaint.id);
+
+  } catch (aiError) {
+    console.error("AI Analysis failed to save:", aiError);
   }
   
-  return data;
-});
+  return complaint;
+}
 
-export const getSuggestions = createServerFn("GET", async (query: { keywords: string[] }) => {
+export const getSuggestions = createServerFn({ method: "GET" }).handler(async ({ data: query }: { data: { keywords: string[] } }) => {
   console.log("Fetching suggestions for keywords:", query.keywords);
   
   // keyword matching logic: check if any of the provided keywords match the FAQ keywords array
@@ -71,7 +147,7 @@ export const getSuggestions = createServerFn("GET", async (query: { keywords: st
   return data;
 });
 
-export const submitFeedback = createServerFn("POST", async (payload: { id: string; rating: number; text: string }) => {
+export const submitFeedback = createServerFn({ method: "POST" }).handler(async ({ data: payload }: { data: { id: string; rating: number; text: string } }) => {
   console.log("Submitting feedback for complaint:", payload.id);
   
   const { data, error } = await supabase

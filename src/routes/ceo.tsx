@@ -28,6 +28,10 @@ import { VoxCard } from "@/components/vox/VoxCard";
 import { VoxBadge } from "@/components/vox/VoxBadge";
 import { cn } from "@/lib/utils";
 import { CEO_WEEKLY_VOLUME, CEO_SENTIMENT_TREND, CEO_THEMES } from "@/lib/mock";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getCEOMetrics } from "@/lib/server/complaints";
+import { supabase } from "@/lib/supabase";
+import { useEffect } from "react";
 
 export const Route = createFileRoute("/ceo")({
   beforeLoad: async () => {
@@ -52,6 +56,34 @@ export const Route = createFileRoute("/ceo")({
 });
 
 function ExecutivePortal() {
+  const queryClient = useQueryClient();
+  const { data: metrics, isLoading } = useQuery({
+    queryKey: ["ceo-metrics"],
+    queryFn: () => getCEOMetrics(),
+  });
+
+  // Real-time subscription
+  useEffect(() => {
+    const channel = supabase
+      .channel("ceo-updates")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "complaints" },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["ceo-metrics"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  const volumeValue = metrics?.totalVolume?.toLocaleString() || "0";
+  const sentimentValue = metrics ? `−${metrics.negativeRatio.toFixed(1)}%` : "0%";
+  const exposureValue = metrics ? `₹${(metrics.totalExposure / 1000).toFixed(1)}K` : "₹0";
+
   return (
     <VoxShell
       accent="violet"
@@ -91,8 +123,8 @@ function ExecutivePortal() {
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <KpiCard
             title="Volume & Velocity"
-            value="1,284"
-            unit="resolved"
+            value={volumeValue}
+            unit="incoming voxes"
             delta="+12.4%"
             up
             icon={Activity}
@@ -101,7 +133,7 @@ function ExecutivePortal() {
           />
           <KpiCard
             title="Sentiment Shift"
-            value="−6.2%"
+            value={sentimentValue}
             unit="negative ratio"
             delta="−1.8 pts"
             up
@@ -112,7 +144,7 @@ function ExecutivePortal() {
           />
           <KpiCard
             title="Financial Exposure"
-            value="$8.4M"
+            value={exposureValue}
             unit="accounts at risk"
             delta="+$420K"
             down

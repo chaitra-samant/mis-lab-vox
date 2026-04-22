@@ -18,8 +18,10 @@ import { NewVoxDialog } from "@/components/vox/NewVoxDialog";
 import { cn } from "@/lib/utils";
 import { MOCK_CUSTOMER } from "@/lib/mock";
 import { formatDistanceToNow } from "date-fns";
-import { useQuery } from "@tanstack/react-query";
 import { getComplaints } from "@/lib/server/complaints";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/customer")({
   beforeLoad: async () => {
@@ -54,12 +56,31 @@ const statusToStep: Record<string, number> = {
 function CustomerPortal() {
   const [open, setOpen] = useState(false);
   
+  const queryClient = useQueryClient();
   const { data: realComplaints, isLoading } = useQuery({
-    queryKey: ["complaints"],
+    queryKey: ["complaints", "customer"],
     queryFn: () => getComplaints(),
   });
 
-  const complaints = realComplaints || [];
+  // Real-time subscription
+  useEffect(() => {
+    const channel = supabase
+      .channel("customer-complaints")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "complaints" },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["complaints"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  const complaints = Array.isArray(realComplaints) ? realComplaints : [];
   const recent = complaints.slice(0, 4);
   
   const openCount = complaints.filter(c => c.status === "OPEN" || c.status === "ESCALATED").length;

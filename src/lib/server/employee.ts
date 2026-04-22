@@ -13,7 +13,7 @@ const MOCK_EMPLOYEE_ID = "e0000001-0000-0000-0000-000000000002";
 const MOCK_DEPARTMENT = "Finance";
 const MOCK_ROLE = "employee";
 
-export const getDepartmentQueue = createServerFn("GET", async () => {
+export const getDepartmentQueue = createServerFn({ method: "GET" }).handler(async () => {
   console.log("Fetching queue for department:", MOCK_DEPARTMENT);
   
   const { data, error } = await supabase
@@ -30,7 +30,7 @@ export const getDepartmentQueue = createServerFn("GET", async () => {
   return data;
 });
 
-export const getComplaintDetails = createServerFn("GET", async (query: { id: string }) => {
+export const getComplaintDetails = createServerFn({ method: "GET" }).handler(async ({ data: query }: { data: { id: string } }) => {
   console.log("Fetching details for complaint:", query.id);
   
   const { data, error } = await supabase
@@ -51,7 +51,7 @@ export const getComplaintDetails = createServerFn("GET", async (query: { id: str
   return data;
 });
 
-export const claimComplaint = createServerFn("POST", async (payload: { id: string }) => {
+export const claimComplaint = createServerFn({ method: "POST" }).handler(async ({ data: payload }: { data: { id: string } }) => {
   console.log("Claiming complaint:", payload.id);
   
   const { data, error } = await supabase
@@ -73,7 +73,7 @@ export const claimComplaint = createServerFn("POST", async (payload: { id: strin
   return data;
 });
 
-export const updateComplaintStatus = createServerFn("POST", async (payload: { id: string; status: string; resolutionNote?: string }) => {
+export const updateComplaintStatus = createServerFn({ method: "POST" }).handler(async ({ data: payload }: { data: { id: string; status: string; resolutionNote?: string } }) => {
   console.log("Updating status for:", payload.id, "to", payload.status);
   
   const updateData: any = {
@@ -104,7 +104,7 @@ export const updateComplaintStatus = createServerFn("POST", async (payload: { id
   return data;
 });
 
-export const addMessage = createServerFn("POST", async (payload: { complaint_id: string; message_text: string; visible_to_customer: boolean }) => {
+export const addMessage = createServerFn({ method: "POST" }).handler(async ({ data: payload }: { data: { complaint_id: string; message_text: string; visible_to_customer: boolean } }) => {
   console.log("Adding message to complaint:", payload.complaint_id);
   
   const { data, error } = await supabase
@@ -129,7 +129,7 @@ export const addMessage = createServerFn("POST", async (payload: { complaint_id:
   return data;
 });
 
-export const escalateComplaint = createServerFn("POST", async (payload: { id: string; reason: string }) => {
+export const escalateComplaint = createServerFn({ method: "POST" }).handler(async ({ data: payload }: { data: { id: string; reason: string } }) => {
   console.log("Escalating complaint:", payload.id);
   
   const { data, error } = await supabase
