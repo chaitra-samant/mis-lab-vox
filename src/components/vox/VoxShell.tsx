@@ -112,30 +112,6 @@ export function VoxShell({ accent, portalLabel, navItems = [], user, children }:
         })}
       </nav>
 
-      <div className="mt-4 border-t border-slate-200/60 px-3 py-3">
-        <div className="mb-2 px-2 text-xs font-medium uppercase tracking-wider text-slate-400">
-          Switch Portal
-        </div>
-        {portals.map((p) => {
-          const isActive = p.label.toLowerCase() === portalLabel.toLowerCase();
-          const pa = accentClasses[p.accent];
-          return (
-            <Link
-              key={p.to}
-              to={p.to}
-              className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-1.5 text-sm transition-colors",
-                isActive
-                  ? cn(pa.activeBg, "font-medium")
-                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
-              )}
-            >
-              <p.icon className="h-3.5 w-3.5" />
-              {p.label}
-            </Link>
-          );
-        })}
-      </div>
 
       <div className="border-t border-slate-200/60 p-4">
         <div className="flex items-center gap-3">
@@ -167,7 +143,7 @@ export function VoxShell({ accent, portalLabel, navItems = [], user, children }:
   return (
     <div className="flex min-h-screen bg-[#F9FAFB]">
       {/* Desktop sidebar */}
-      <aside className="hidden w-60 flex-shrink-0 border-r border-slate-200/60 bg-white lg:block">
+      <aside className="sticky top-0 hidden h-screen w-60 flex-shrink-0 border-r border-slate-200/60 bg-white lg:block">
         <SidebarContent />
       </aside>
 

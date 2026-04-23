@@ -68,6 +68,11 @@ const PAGE_SIZE = 10;
 
 export const Route = createFileRoute("/employee")({
   beforeLoad: async () => {
+    // During SSR, we might not have access to the session.
+    // We skip the redirect on the server to prevent being logged out on refresh.
+    // The check will run again on the client during hydration.
+    if (typeof window === "undefined") return;
+
     const role = await getUserRole();
     if (!role) {
       throw redirect({ to: "/login" });
