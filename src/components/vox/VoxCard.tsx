@@ -1,7 +1,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-type AccentColor = "slate" | "blue" | "indigo" | "violet" | "none";
+type AccentColor = "slate" | "blue" | "indigo" | "violet" | "emerald" | "none";
 
 interface VoxCardProps extends React.HTMLAttributes<HTMLDivElement> {
   accent?: AccentColor;
@@ -13,6 +13,7 @@ const accentMap: Record<AccentColor, string> = {
   blue: "before:bg-blue-600",
   indigo: "before:bg-indigo-600",
   violet: "before:bg-violet-600",
+  emerald: "before:bg-emerald-600",
   none: "",
 };
 

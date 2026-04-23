@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { VoxLogo } from "./VoxLogo";
 import { VoxButton } from "./VoxButton";
 
-export type PortalAccent = "blue" | "indigo" | "violet";
+export type PortalAccent = "blue" | "indigo" | "violet" | "emerald";
 
 const accentClasses = {
   blue: {
@@ -36,11 +36,17 @@ const accentClasses = {
     dot: "bg-violet-600",
     label: "text-violet-700",
   },
+  emerald: {
+    activeBg: "bg-emerald-50 text-emerald-700",
+    activeBar: "bg-emerald-600",
+    dot: "bg-emerald-600",
+    label: "text-emerald-700",
+  },
 } as const;
 
 const portals = [
   { to: "/customer", label: "Customer", icon: MessageSquare, accent: "blue" as const },
-  { to: "/employee", label: "Employee", icon: Inbox, accent: "indigo" as const },
+  { to: "/employee", label: "Employee", icon: Inbox, accent: "emerald" as const },
   { to: "/ceo", label: "Executive", icon: LineChart, accent: "violet" as const },
 ];
 

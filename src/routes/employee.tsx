@@ -16,6 +16,10 @@ import {
   Layers,
   BarChart3,
   DollarSign,
+  RefreshCw,
+  TrendingUp,
+  Activity,
+  Clock,
 } from "lucide-react";
 import { VoxShell } from "@/components/vox/VoxShell";
 import { VoxCard } from "@/components/vox/VoxCard";
@@ -245,7 +249,7 @@ function EmployeePortal() {
 
   return (
     <VoxShell
-      accent="indigo"
+      accent="emerald"
       portalLabel="Employee"
       user={currentUser || { name: "Loading...", role: "Employee" }}
       navItems={[
@@ -255,54 +259,88 @@ function EmployeePortal() {
       ]}
     >
       {activeTab === "Worklist" && (
-        <div className="space-y-6">
+        <div className="space-y-8">
+          {/* ── Header ── */}
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Worklist</p>
+              <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                Workspace
+              </p>
               <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">
-                Incoming Voxes
+                Good morning, {currentUser?.name?.split(" ")[0] || "Agent"}.
               </h1>
               <p className="mt-1 text-sm text-slate-500">
-                {filtered.length} of {mappedData.length} shown
+                You have {mappedData.filter(d => d.status === "Open" || d.status === "In progress").length} active Voxes in your queue.
               </p>
             </div>
-            <VoxBadge tone="p1" dot>
-              {mappedData.filter((d) => d.priority === "HIGH" || d.priority === "CRITICAL").length}{" "}
-              High/Critical
-            </VoxBadge>
+            <div className="flex items-center gap-2">
+              <VoxButton variant="secondary" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ["complaints"] })}>
+                <RefreshCw className="h-4 w-4 mr-2" /> Refresh
+              </VoxButton>
+            </div>
           </div>
 
-          <VoxCard className="p-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  placeholder="Search ID, subject, or customer..."
-                  className="h-9 w-full rounded-md border border-slate-200 bg-white pl-9 pr-3 text-sm focus:ring-1 focus:ring-slate-400 outline-none"
-                />
-              </div>
-              <PillSelect
-                label="Sentiment"
-                value={sentiment}
-                options={["All", ...sentiments]}
-                onChange={(v) => setSentiment(v as any)}
-              />
-              <PillSelect
-                label="Urgency"
-                value={priority}
-                options={["All", ...priorities]}
-                onChange={(v) => setPriority(v as any)}
-              />
-              <PillSelect
-                label="Status"
-                value={status}
-                options={["All", ...statuses]}
-                onChange={(v) => setStatus(v as any)}
-              />
+          {/* ── KPI stat cards ── */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { label: "Total Assigned", value: mappedData.length, hint: "All time cases", dotColor: "bg-blue-500" },
+              { label: "High Priority", value: mappedData.filter(d => d.priority === "HIGH" || d.priority === "CRITICAL").length, hint: "Requires immediate action", dotColor: "bg-red-500" },
+              { label: "Open / In Progress", value: mappedData.filter(d => d.status === "Open" || d.status === "In progress").length, hint: "Currently active", dotColor: "bg-amber-400" },
+              { label: "Resolved", value: mappedData.filter(d => d.status === "Resolved" || d.status === "Closed").length, hint: "Completed cases", dotColor: "bg-emerald-500" },
+            ].map((k) => (
+              <VoxCard key={k.label} className="p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                    {k.label}
+                  </span>
+                  <span className={cn("h-2 w-2 rounded-full", k.dotColor, k.label === "High Priority" && k.value > 0 ? "animate-pulse" : "")} />
+                </div>
+                <div className="text-3xl font-semibold tracking-tight text-slate-900">
+                  {k.value}
+                </div>
+                <p className="mt-1 text-xs text-slate-400">{k.hint}</p>
+              </VoxCard>
+            ))}
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-slate-900">Worklist</h2>
             </div>
-          </VoxCard>
+
+            <VoxCard className="p-3 bg-slate-50/50 border-slate-200">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative flex-1 min-w-[240px]">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    placeholder="Search by ID, subject, or customer..."
+                    className="h-9 w-full rounded-md border border-slate-200 bg-white pl-9 pr-3 text-sm transition-all focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-2 ml-auto">
+                  <PillSelect
+                    label="Sentiment"
+                    value={sentiment}
+                    options={["All", ...sentiments]}
+                    onChange={(v) => setSentiment(v as any)}
+                  />
+                  <PillSelect
+                    label="Urgency"
+                    value={priority}
+                    options={["All", ...priorities]}
+                    onChange={(v) => setPriority(v as any)}
+                  />
+                  <PillSelect
+                    label="Status"
+                    value={status}
+                    options={["All", ...statuses]}
+                    onChange={(v) => setStatus(v as any)}
+                  />
+                </div>
+              </div>
+            </VoxCard>
 
           <VoxCard className="overflow-hidden">
             <div className="overflow-x-auto">
@@ -348,22 +386,27 @@ function EmployeePortal() {
                 </tbody>
               </table>
             </div>
-            <div className="flex items-center justify-between border-t p-4">
-              <span className="text-xs text-slate-500">
-                Page {page} of {totalPages}
+            <div className="flex items-center justify-between border-t border-slate-100 p-4 bg-slate-50/30">
+              <span className="text-xs font-medium text-slate-500">
+                Showing {(page - 1) * PAGE_SIZE + 1} to {Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length} entries
               </span>
               <div className="flex gap-2">
                 <VoxButton
                   size="sm"
                   variant="secondary"
+                  className="h-8 w-8 p-0"
                   onClick={() => setPage((p) => p - 1)}
                   disabled={page === 1}
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </VoxButton>
+                <div className="flex items-center px-2 text-xs font-semibold text-slate-600">
+                  {page} / {totalPages}
+                </div>
                 <VoxButton
                   size="sm"
                   variant="secondary"
+                  className="h-8 w-8 p-0"
                   onClick={() => setPage((p) => p + 1)}
                   disabled={page === totalPages}
                 >
@@ -373,7 +416,8 @@ function EmployeePortal() {
             </div>
           </VoxCard>
         </div>
-      )}
+      </div>
+    )}
 
       {activeTab === "Queues" && <QueuesView data={mappedData} />}
       {activeTab === "Performance" && <PerformanceView data={mappedData} />}
@@ -404,30 +448,34 @@ function QueuesView({ data }: { data: EmployeeComplaint[] }) {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
-        <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Team Workloads</p>
+        <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Infrastructure</p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">Queues Overview</h1>
-        <p className="mt-1 text-sm text-slate-500">Live view of active cases across departments.</p>
+        <p className="mt-1 text-sm text-slate-500">Real-time capacity and routing metrics across departments.</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {teams.map((t) => (
           <VoxCard key={t.name} className="p-5 flex flex-col justify-between">
             <div>
-              <div className="text-sm font-medium text-slate-600">{t.name}</div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-medium uppercase tracking-wider text-slate-500">{t.name}</span>
+                <span className={cn("h-2 w-2 rounded-full", (t.active / t.max) > 0.8 ? "bg-red-500 animate-pulse" : "bg-emerald-500")} />
+              </div>
               <div className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
                 {t.active} <span className="text-sm font-normal text-slate-400">/ {t.max}</span>
               </div>
+              <p className="mt-1 text-xs text-slate-400">Active Voxes</p>
             </div>
-            <div className="mt-4">
-              <div className="flex justify-between text-xs text-slate-500 mb-1">
-                <span>Capacity</span>
+            <div className="mt-6">
+              <div className="flex justify-between text-[10px] font-bold uppercase tracking-tight text-slate-500 mb-1.5">
+                <span>Load Level</span>
                 <span>{Math.round((t.active / t.max) * 100)}%</span>
               </div>
-              <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
+              <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
                 <div 
-                  className={cn("h-full rounded-full", (t.active / t.max) > 0.8 ? "bg-red-500" : (t.active / t.max) > 0.5 ? "bg-amber-500" : "bg-emerald-500")}
+                  className={cn("h-full rounded-full transition-all duration-500", (t.active / t.max) > 0.8 ? "bg-red-500" : (t.active / t.max) > 0.5 ? "bg-amber-400" : "bg-emerald-500")}
                   style={{ width: `${Math.min(100, (t.active / t.max) * 100)}%` }}
                 />
               </div>
@@ -436,24 +484,59 @@ function QueuesView({ data }: { data: EmployeeComplaint[] }) {
         ))}
       </div>
 
-      <VoxCard className="p-5">
-        <h3 className="font-semibold text-slate-900 mb-4">Urgent Routing Rules</h3>
-        <div className="space-y-3">
-          {[
-            { rule: "High Financial Exposure (>₹50k)", route: "Priority Resolution Team", status: "Active" },
-            { rule: "Negative Sentiment + High Blast Radius", route: "Escalation Managers", status: "Active" },
-            { rule: "Multiple Similar Issues (Cluster > 5)", route: "Technical Support", status: "Reviewing" }
-          ].map((r, i) => (
-            <div key={i} className="flex items-center justify-between p-3 border rounded-md bg-slate-50/50">
-              <div>
-                <div className="text-sm font-medium text-slate-900">{r.rule}</div>
-                <div className="text-xs text-slate-500 mt-0.5">Routes to {r.route}</div>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <VoxCard className="p-6">
+          <div className="mb-6">
+            <p className="text-xs font-medium uppercase tracking-wider text-slate-500 mb-1">Automation</p>
+            <h3 className="font-semibold text-slate-900">Urgent Routing Rules</h3>
+          </div>
+          <div className="space-y-3">
+            {[
+              { rule: "High Financial Exposure (>₹50k)", route: "Priority Resolution Team", status: "Active" },
+              { rule: "Negative Sentiment + High Blast Radius", route: "Escalation Managers", status: "Active" },
+              { rule: "Multiple Similar Issues (Cluster > 5)", route: "Technical Support", status: "Reviewing" }
+            ].map((r, i) => (
+              <div key={i} className="flex items-center justify-between p-4 border border-slate-100 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
+                <div>
+                  <div className="text-sm font-semibold text-slate-900">{r.rule}</div>
+                  <div className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                    <ArrowUpRight className="h-3 w-3 text-emerald-600" /> Routes to {r.route}
+                  </div>
+                </div>
+                <VoxBadge tone={r.status === "Active" ? "positive" : "neutral"} dot>{r.status}</VoxBadge>
               </div>
-              <VoxBadge tone={r.status === "Active" ? "positive" : "neutral"}>{r.status}</VoxBadge>
+            ))}
+          </div>
+        </VoxCard>
+
+        <VoxCard className="p-6">
+          <div className="mb-6">
+            <p className="text-xs font-medium uppercase tracking-wider text-slate-500 mb-1">Optimization</p>
+            <h3 className="font-semibold text-slate-900">Queue Management Tips</h3>
+          </div>
+          <div className="space-y-4">
+            <div className="flex gap-3">
+              <div className="h-6 w-6 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
+                <span className="text-[10px] font-bold text-emerald-600">01</span>
+              </div>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Prioritize "High/Negative" clusters to prevent brand damage and further escalations.
+              </p>
             </div>
-          ))}
-        </div>
-      </VoxCard>
+            <div className="flex gap-3">
+              <div className="h-6 w-6 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
+                <span className="text-[10px] font-bold text-emerald-600">02</span>
+              </div>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Use AI-suggested responses for "General Inquiry" Voxes to reduce handle time by 30%.
+              </p>
+            </div>
+            <VoxButton className="w-full mt-2" variant="outline">
+              Open Queue Designer
+            </VoxButton>
+          </div>
+        </VoxCard>
+      </div>
     </div>
   );
 }
@@ -477,7 +560,7 @@ function PillSelect({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-9 cursor-pointer appearance-none rounded-md border bg-white pl-20 pr-8 text-xs font-medium focus:ring-1 focus:ring-slate-400 outline-none"
+        className="h-9 cursor-pointer appearance-none rounded-md border border-slate-200 bg-white pl-20 pr-8 text-xs font-semibold text-slate-700 transition-all hover:border-slate-300 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
       >
         {options.map((o) => (
           <option key={o} value={o}>
@@ -493,57 +576,102 @@ function PerformanceView({ data }: { data: EmployeeComplaint[] }) {
   const resolvedCount = data.filter(d => d.status === "Resolved" || d.status === "Closed").length;
   
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Analytics</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">My Performance</h1>
-        <p className="mt-1 text-sm text-slate-500">Your resolution metrics and SLA compliance.</p>
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Analytics</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">My Performance</h1>
+          <p className="mt-1 text-sm text-slate-500">Your resolution metrics and SLA compliance overview.</p>
+        </div>
+        <VoxBadge tone="positive" className="bg-emerald-50 text-emerald-700 border border-emerald-100">
+          Top 10% in Department
+        </VoxBadge>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <VoxCard className="p-5">
-          <div className="text-sm font-medium text-slate-500">Resolutions Today</div>
-          <div className="mt-2 text-3xl font-semibold text-slate-900">{resolvedCount + 4}</div>
-          <div className="mt-1 text-xs text-emerald-600 flex items-center gap-1 font-medium">
+        <VoxCard className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-xs font-medium uppercase tracking-wider text-slate-500">Resolutions Today</span>
+            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+          </div>
+          <div className="text-3xl font-semibold text-slate-900">{resolvedCount + 4}</div>
+          <div className="mt-2 text-xs text-emerald-600 flex items-center gap-1 font-medium">
             <ArrowUpRight className="h-3 w-3" /> +2 from yesterday
           </div>
         </VoxCard>
         
-        <VoxCard className="p-5">
-          <div className="text-sm font-medium text-slate-500">Avg. Resolution Time</div>
-          <div className="mt-2 text-3xl font-semibold text-slate-900">1.4 <span className="text-lg">hrs</span></div>
-          <div className="mt-1 text-xs text-emerald-600 flex items-center gap-1 font-medium">
-            <ArrowUpRight className="h-3 w-3 rotate-90" /> 15% faster than avg
+        <VoxCard className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-xs font-medium uppercase tracking-wider text-slate-500">Avg. Resolution Time</span>
+            <Clock className="h-4 w-4 text-blue-500" />
+          </div>
+          <div className="text-3xl font-semibold text-slate-900">1.4 <span className="text-lg font-normal text-slate-400">hrs</span></div>
+          <div className="mt-2 text-xs text-emerald-600 flex items-center gap-1 font-medium">
+            <ArrowUpRight className="h-3 w-3" /> 15% faster than avg
           </div>
         </VoxCard>
 
-        <VoxCard className="p-5">
-          <div className="text-sm font-medium text-slate-500">SLA Compliance</div>
-          <div className="mt-2 text-3xl font-semibold text-slate-900">98.2%</div>
-          <div className="mt-1 text-xs text-slate-500 font-medium">
-            Top 10% in department
+        <VoxCard className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-xs font-medium uppercase tracking-wider text-slate-500">SLA Compliance</span>
+            <Activity className="h-4 w-4 text-amber-400" />
+          </div>
+          <div className="text-3xl font-semibold text-slate-900">98.2%</div>
+          <div className="mt-2 text-xs text-slate-400 font-medium">
+            Within 24h target window
           </div>
         </VoxCard>
       </div>
 
-      <VoxCard className="p-5">
-        <h3 className="font-semibold text-slate-900 mb-4">Recent Achievements</h3>
-        <div className="space-y-4">
-          {[
-            { title: "SLA Champion", desc: "Maintained >95% SLA compliance for 30 consecutive days.", icon: <CheckCircle2 className="h-5 w-5 text-emerald-500" /> },
-            { title: "De-escalation Expert", desc: "Successfully resolved 5 high-priority negative sentiment cases this week.", icon: <UserPlus className="h-5 w-5 text-indigo-500" /> },
-            { title: "Value Saver", desc: "Prevented an estimated ₹120,000 in customer financial exposure today.", icon: <DollarSign className="h-5 w-5 text-amber-500" /> }
-          ].map((ach, i) => (
-            <div key={i} className="flex gap-4 p-4 border rounded-lg bg-white shadow-sm">
-              <div className="mt-0.5">{ach.icon}</div>
-              <div>
-                <div className="text-sm font-semibold text-slate-900">{ach.title}</div>
-                <div className="text-sm text-slate-600 mt-1">{ach.desc}</div>
+      <div className="grid gap-6 lg:grid-cols-3">
+        <VoxCard className="p-6 lg:col-span-2">
+          <div className="mb-6">
+            <p className="text-xs font-medium uppercase tracking-wider text-slate-500 mb-1">Recognition</p>
+            <h3 className="font-semibold text-slate-900">Recent Achievements</h3>
+          </div>
+          <div className="space-y-4">
+            {[
+              { title: "SLA Champion", desc: "Maintained >95% SLA compliance for 30 consecutive days.", icon: <CheckCircle2 className="h-5 w-5 text-emerald-500" />, tone: "bg-emerald-50" },
+              { title: "De-escalation Expert", desc: "Successfully resolved 5 high-priority negative sentiment cases this week.", icon: <UserPlus className="h-5 w-5 text-blue-500" />, tone: "bg-blue-50" },
+              { title: "Value Saver", desc: "Prevented an estimated ₹120,000 in customer financial exposure today.", icon: <DollarSign className="h-5 w-5 text-amber-500" />, tone: "bg-amber-50" }
+            ].map((ach, i) => (
+              <div key={i} className="flex gap-4 p-4 border border-slate-100 rounded-xl bg-white hover:shadow-sm transition-all">
+                <div className={cn("h-10 w-10 shrink-0 rounded-lg flex items-center justify-center", ach.tone)}>{ach.icon}</div>
+                <div>
+                  <div className="text-sm font-bold text-slate-900">{ach.title}</div>
+                  <div className="text-xs text-slate-500 mt-1 leading-relaxed">{ach.desc}</div>
+                </div>
               </div>
+            ))}
+          </div>
+        </VoxCard>
+
+        <VoxCard className="p-6">
+          <div className="mb-6 text-center">
+            <div className="h-16 w-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <TrendingUp className="h-8 w-8" />
             </div>
-          ))}
-        </div>
-      </VoxCard>
+            <h3 className="font-semibold text-slate-900">Weekly Target</h3>
+            <p className="text-xs text-slate-500 mt-1">You are 85% through your goal.</p>
+          </div>
+          
+          <div className="relative h-48 flex items-center justify-center mt-4">
+             {/* Progress circle SVG */}
+             <div className="relative z-10 text-center">
+               <span className="text-4xl font-bold text-slate-900 leading-none">42</span>
+               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1">Resolved</p>
+             </div>
+             <svg className="absolute inset-0 h-full w-full -rotate-90 pointer-events-none" viewBox="0 0 100 100">
+               <circle cx="50" cy="50" r="40" stroke="currentColor" strokeWidth="6" fill="transparent" className="text-slate-100" />
+               <circle cx="50" cy="50" r="40" stroke="currentColor" strokeWidth="6" fill="transparent" strokeDasharray="251.2" strokeDashoffset="37.68" strokeLinecap="round" className="text-emerald-500 transition-all duration-1000" />
+             </svg>
+          </div>
+          
+          <VoxButton variant="outline" className="w-full mt-6">
+            View My Journey
+          </VoxButton>
+        </VoxCard>
+      </div>
     </div>
   );
 }
