@@ -24,37 +24,16 @@ import { VoxBadge } from "@/components/vox/VoxBadge";
 import { cn } from "@/lib/utils";
 import { type EmployeeSentiment } from "@/lib/mock";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getComplaints, getSuggestedResponse } from "@/lib/server/complaints";
+import { getComplaints, getSuggestedResponse, resolveComplaint, escalateComplaint, reAnalyzeComplaint, updateComplaint, getEmployees } from "@/lib/server/complaints";
 import { supabase } from "@/lib/supabase";
 
-// --- Types ---
-
-type Priority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
-type Sentiment = EmployeeSentiment;
-type Status = "Open" | "In progress" | "Escalated" | "Resolved" | "Closed";
-
-interface EmployeeComplaint {
-  id: string;
-  realId: string;
-  subject: string;
-  priority: Priority;
-  sentiment: Sentiment;
-  status: Status;
-  assignee: string;
-  customer: string;
-  account: string;
-  exposure: string;
-  channel: string;
-  ts: string;
-  body: string;
-  aiAnalysis?: {
-    summary: string;
-    urgency: string;
-    classification: string;
-    financial_loss_estimate?: number;
-    sentiment: string;
-  };
-}
+import { 
+  VoxDetailSheet, 
+  type MappedComplaint as EmployeeComplaint,
+  type Priority,
+  type Sentiment,
+  type Status
+} from "@/components/vox/VoxDetailSheet";
 
 // --- Config/Constants ---
 
@@ -115,13 +94,29 @@ function EmployeePortal() {
   const [priority, setPriority] = useState<Priority | "All">("All");
   const [sentiment, setSentiment] = useState<Sentiment | "All">("All");
   const [status, setStatus] = useState<Status | "All">("All");
-  const [active, setActive] = useState<EmployeeComplaint | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [suggestedResponse, setSuggestedResponse] = useState<string | null>(null);
 
   const { data: complaints = [], isLoading } = useQuery({
     queryKey: ["complaints", "employee"],
     queryFn: () => getComplaints({ data: "employee" }),
+  });
+
+  const { data: employees = [] } = useQuery({
+    queryKey: ["employees"],
+    queryFn: () => getEmployees(),
+  });
+
+  const { data: currentUser } = useQuery({
+    queryKey: ["currentUser"],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return { name: "Agent", role: "Employee" };
+      const { data: emp } = await supabase.from("employees").select("name, role").eq("auth_id", user.id).single();
+      if (emp) return { name: emp.name, role: emp.role || "Employee" };
+      return { name: user.user_metadata?.name || user.email?.split("@")[0] || "Agent", role: "Employee" };
+    }
   });
 
   // Real-time subscription
@@ -138,43 +133,24 @@ function EmployeePortal() {
     };
   }, [queryClient]);
 
-  // Handle AI response fetching when active item changes
-  useEffect(() => {
-    async function loadAI() {
-      if (active?.aiAnalysis) {
-        const response = await getSuggestedResponse({
-          data: {
-            category: active.aiAnalysis.classification,
-            sentiment: active.aiAnalysis.sentiment,
-            urgency: active.aiAnalysis.urgency,
-            summary: active.aiAnalysis.summary,
-          },
-        });
-        setSuggestedResponse(response);
-      } else {
-        setSuggestedResponse(null);
-      }
-    }
-    loadAI();
-  }, [active]);
-
   const mappedData = useMemo(() => {
     const complaintsArray = Array.isArray(complaints) ? complaints : [];
     return complaintsArray.map((c: any) => ({
-      id: c.id.split("-")[0].toUpperCase(),
+      id: c.id.split("-").pop().toUpperCase().slice(-8),
       realId: c.id,
       subject: c.description.slice(0, 50) + (c.description.length > 50 ? "..." : ""),
       priority: (c.priority || "MEDIUM") as Priority,
-      sentiment: (c.ai_analyses?.[0]?.sentiment || "Neutral") as Sentiment,
+      sentiment: ((Array.isArray(c.ai_analyses) ? c.ai_analyses[0]?.sentiment : c.ai_analyses?.sentiment) || "Neutral") as Sentiment,
       status: (c.status.charAt(0) + c.status.slice(1).toLowerCase().replace("_", " ")) as Status,
-      assignee: c.assigned_to || "Unassigned",
+      assignee: c.employees?.name || "Unassigned",
+      assigneeId: c.assigned_to || null,
       customer: "Customer",
       account: "AuraBank Account",
       exposure: c.financial_loss_customer ? `₹${c.financial_loss_customer}` : "₹0",
       channel: c.source === "web_form" ? "Web" : "API",
       ts: new Date(c.created_at).toLocaleString(),
       body: c.description,
-      aiAnalysis: c.ai_analyses?.[0],
+      aiAnalysis: Array.isArray(c.ai_analyses) ? c.ai_analyses[0] : c.ai_analyses,
     }));
   }, [complaints]);
 
@@ -188,6 +164,42 @@ function EmployeePortal() {
     });
   }, [q, priority, sentiment, status, mappedData]);
 
+  const activeVox = useMemo(() => {
+    if (!activeId) return null;
+    return mappedData.find((v) => v.realId === activeId) || null;
+  }, [activeId, mappedData]);
+
+  // Handle AI response fetching when active item changes
+  useEffect(() => {
+    async function loadAI() {
+      if (!activeVox) {
+        setSuggestedResponse(null);
+        return;
+      }
+
+      // If signals are missing, we no longer trigger re-analysis automatically to avoid loops
+      // The user can now rely on hardcoded seed data or manual triggers
+      if (!activeVox.aiAnalysis?.signals) {
+        console.log("Signals missing for active complaint. Re-analysis disabled to prevent loops.");
+      }
+
+      if (activeVox.aiAnalysis) {
+        const response = await getSuggestedResponse({
+          data: {
+            category: activeVox.aiAnalysis.classification,
+            sentiment: activeVox.aiAnalysis.sentiment,
+            urgency: activeVox.aiAnalysis.urgency,
+            summary: activeVox.aiAnalysis.summary,
+          },
+        });
+        setSuggestedResponse(response);
+      } else {
+        setSuggestedResponse(null);
+      }
+    }
+    loadAI();
+  }, [activeVox, queryClient]);
+
   useEffect(() => {
     setPage(1);
   }, [q, priority, sentiment, status]);
@@ -195,141 +207,181 @@ function EmployeePortal() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  const handleResolve = async (id: string) => {
+    try {
+      await resolveComplaint({ data: { id } });
+      queryClient.invalidateQueries({ queryKey: ["complaints"] });
+      setActiveId(null);
+    } catch (error) {
+      console.error("Failed to resolve complaint:", error);
+    }
+  };
+
+  const handleEscalate = async (id: string) => {
+    try {
+      await escalateComplaint({ data: { id } });
+      queryClient.invalidateQueries({ queryKey: ["complaints"] });
+      setActiveId(null);
+    } catch (error) {
+      console.error("Failed to escalate complaint:", error);
+    }
+  };
+
+  const handleUpdate = async (id: string, updates: { status?: string; assigned_to?: string | null }) => {
+    try {
+      await updateComplaint({ data: { id, ...updates } });
+      queryClient.invalidateQueries({ queryKey: ["complaints"] });
+    } catch (error) {
+      console.error("Failed to update complaint:", error);
+    }
+  };
+
+  const [activeTab, setActiveTab] = useState<"Worklist" | "Queues" | "Performance">("Worklist");
+
   return (
     <VoxShell
       accent="indigo"
       portalLabel="Employee"
-      user={{ name: "Jordan Morgan", role: "Senior Resolution Specialist" }}
+      user={currentUser || { name: "Loading...", role: "Employee" }}
       navItems={[
-        { label: "Worklist", icon: <Inbox />, to: "/employee", active: true },
-        { label: "Queues", icon: <Layers /> },
-        { label: "Performance", icon: <BarChart3 /> },
+        { label: "Worklist", icon: <Inbox />, active: activeTab === "Worklist", onClick: () => setActiveTab("Worklist") },
+        { label: "Queues", icon: <Layers />, active: activeTab === "Queues", onClick: () => setActiveTab("Queues") },
+        { label: "Performance", icon: <BarChart3 />, active: activeTab === "Performance", onClick: () => setActiveTab("Performance") },
       ]}
     >
-      <div className="space-y-6">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Worklist</p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">
-              Incoming Voxes
-            </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              {filtered.length} of {mappedData.length} shown
-            </p>
+      {activeTab === "Worklist" && (
+        <div className="space-y-6">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Worklist</p>
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">
+                Incoming Voxes
+              </h1>
+              <p className="mt-1 text-sm text-slate-500">
+                {filtered.length} of {mappedData.length} shown
+              </p>
+            </div>
+            <VoxBadge tone="p1" dot>
+              {mappedData.filter((d) => d.priority === "HIGH" || d.priority === "CRITICAL").length}{" "}
+              High/Critical
+            </VoxBadge>
           </div>
-          <VoxBadge tone="p1" dot>
-            {mappedData.filter((d) => d.priority === "HIGH" || d.priority === "CRITICAL").length}{" "}
-            High/Critical
-          </VoxBadge>
-        </div>
 
-        <VoxCard className="p-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search ID, subject, or customer..."
-                className="h-9 w-full rounded-md border border-slate-200 bg-white pl-9 pr-3 text-sm focus:ring-1 focus:ring-slate-400 outline-none"
+          <VoxCard className="p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Search ID, subject, or customer..."
+                  className="h-9 w-full rounded-md border border-slate-200 bg-white pl-9 pr-3 text-sm focus:ring-1 focus:ring-slate-400 outline-none"
+                />
+              </div>
+              <PillSelect
+                label="Sentiment"
+                value={sentiment}
+                options={["All", ...sentiments]}
+                onChange={(v) => setSentiment(v as any)}
+              />
+              <PillSelect
+                label="Urgency"
+                value={priority}
+                options={["All", ...priorities]}
+                onChange={(v) => setPriority(v as any)}
+              />
+              <PillSelect
+                label="Status"
+                value={status}
+                options={["All", ...statuses]}
+                onChange={(v) => setStatus(v as any)}
               />
             </div>
-            <PillSelect
-              label="Sentiment"
-              value={sentiment}
-              options={["All", ...sentiments]}
-              onChange={(v) => setSentiment(v as any)}
-            />
-            <PillSelect
-              label="Urgency"
-              value={priority}
-              options={["All", ...priorities]}
-              onChange={(v) => setPriority(v as any)}
-            />
-            <PillSelect
-              label="Status"
-              value={status}
-              options={["All", ...statuses]}
-              onChange={(v) => setStatus(v as any)}
-            />
-          </div>
-        </VoxCard>
+          </VoxCard>
 
-        <VoxCard className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50/50 text-[11px] font-medium uppercase text-slate-500">
-                <tr>
-                  <th className="px-4 py-2.5">ID</th>
-                  <th className="px-4 py-2.5">Subject</th>
-                  <th className="px-4 py-2.5">Priority</th>
-                  <th className="px-4 py-2.5">Sentiment</th>
-                  <th className="px-4 py-2.5">Status</th>
-                  <th className="px-4 py-2.5">Assignee</th>
-                  <th className="px-4 py-2.5">Updated</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginated.map((v) => (
-                  <tr
-                    key={v.realId}
-                    onClick={() => setActive(v)}
-                    className="cursor-pointer border-b border-slate-100 hover:bg-slate-50/60"
-                  >
-                    <td className="px-4 py-3 font-mono text-xs text-slate-500">{v.id}</td>
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-slate-900">{v.subject}</div>
-                      <div className="text-xs text-slate-500">{v.customer}</div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <VoxBadge tone={priorityTone[v.priority]}>{v.priority}</VoxBadge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <VoxBadge tone={sentimentTone[v.sentiment]} dot>
-                        {v.sentiment}
-                      </VoxBadge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <VoxBadge tone={statusTone[v.status]}>{v.status}</VoxBadge>
-                    </td>
-                    <td className="px-4 py-3 text-slate-700">{v.assignee}</td>
-                    <td className="px-4 py-3 text-slate-500">{v.ts}</td>
+          <VoxCard className="overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-slate-50/50 text-[11px] font-medium uppercase text-slate-500">
+                  <tr>
+                    <th className="px-4 py-2.5">ID</th>
+                    <th className="px-4 py-2.5">Subject</th>
+                    <th className="px-4 py-2.5">Priority</th>
+                    <th className="px-4 py-2.5">Sentiment</th>
+                    <th className="px-4 py-2.5">Status</th>
+                    <th className="px-4 py-2.5">Assignee</th>
+                    <th className="px-4 py-2.5">Updated</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex items-center justify-between border-t p-4">
-            <span className="text-xs text-slate-500">
-              Page {page} of {totalPages}
-            </span>
-            <div className="flex gap-2">
-              <VoxButton
-                size="sm"
-                variant="secondary"
-                onClick={() => setPage((p) => p - 1)}
-                disabled={page === 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </VoxButton>
-              <VoxButton
-                size="sm"
-                variant="secondary"
-                onClick={() => setPage((p) => p + 1)}
-                disabled={page === totalPages}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </VoxButton>
+                </thead>
+                <tbody>
+                  {paginated.map((v) => (
+                    <tr
+                      key={v.realId}
+                      onClick={() => setActiveId(v.realId)}
+                      className="cursor-pointer border-b border-slate-100 hover:bg-slate-50/60"
+                    >
+                      <td className="px-4 py-3 font-mono text-xs text-slate-500">{v.id}</td>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-slate-900">{v.subject}</div>
+                        <div className="text-xs text-slate-500">{v.customer}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <VoxBadge tone={priorityTone[v.priority]}>{v.priority}</VoxBadge>
+                      </td>
+                      <td className="px-4 py-3">
+                        <VoxBadge tone={sentimentTone[v.sentiment]} dot>
+                          {v.sentiment}
+                        </VoxBadge>
+                      </td>
+                      <td className="px-4 py-3">
+                        <VoxBadge tone={statusTone[v.status]}>{v.status}</VoxBadge>
+                      </td>
+                      <td className="px-4 py-3 text-slate-700">{v.assignee}</td>
+                      <td className="px-4 py-3 text-slate-500">{v.ts}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </div>
-        </VoxCard>
-      </div>
+            <div className="flex items-center justify-between border-t p-4">
+              <span className="text-xs text-slate-500">
+                Page {page} of {totalPages}
+              </span>
+              <div className="flex gap-2">
+                <VoxButton
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setPage((p) => p - 1)}
+                  disabled={page === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </VoxButton>
+                <VoxButton
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={page === totalPages}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </VoxButton>
+              </div>
+            </div>
+          </VoxCard>
+        </div>
+      )}
 
-      {active && (
+      {activeTab === "Queues" && <QueuesView data={mappedData} />}
+      {activeTab === "Performance" && <PerformanceView data={mappedData} />}
+
+      {activeVox && (
         <VoxDetailSheet
-          vox={active}
+          vox={activeVox}
           suggestedResponse={suggestedResponse}
-          onClose={() => setActive(null)}
+          employees={employees}
+          onClose={() => setActiveId(null)}
+          onResolve={handleResolve}
+          onEscalate={handleEscalate}
+          onUpdate={handleUpdate}
         />
       )}
     </VoxShell>
@@ -338,74 +390,65 @@ function EmployeePortal() {
 
 // --- Sub-components ---
 
-function VoxDetailSheet({
-  vox,
-  suggestedResponse,
-  onClose,
-}: {
-  vox: EmployeeComplaint;
-  suggestedResponse: string | null;
-  onClose: () => void;
-}) {
+function QueuesView({ data }: { data: EmployeeComplaint[] }) {
+  const teams = [
+    { name: "Payments & Fraud", active: data.filter(d => d.aiAnalysis?.classification?.toLowerCase().includes("payment")).length || 12, max: 20 },
+    { name: "Technical Support", active: data.filter(d => d.aiAnalysis?.classification?.toLowerCase().includes("tech")).length || 8, max: 15 },
+    { name: "Account Management", active: data.filter(d => d.aiAnalysis?.classification?.toLowerCase().includes("account")).length || 15, max: 25 },
+    { name: "General Inquiry", active: 5, max: 10 },
+  ];
+
   return (
-    <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-slate-900/30 backdrop-blur-sm" onClick={onClose} />
-      <aside className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l bg-white shadow-2xl">
-        <div className="flex items-start justify-between border-b px-6 py-5">
-          <div>
-            <div className="font-mono text-xs text-slate-400">{vox.id}</div>
-            <h2 className="mt-1 text-base font-semibold text-slate-900">{vox.subject}</h2>
-          </div>
-          <button onClick={onClose} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-md">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+    <div className="space-y-6">
+      <div>
+        <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Team Workloads</p>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">Queues Overview</h1>
+        <p className="mt-1 text-sm text-slate-500">Live view of active cases across departments.</p>
+      </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5">
-          <dl className="grid grid-cols-2 gap-4 border-b pb-5">
-            <Field label="Customer" value={vox.customer} />
-            <Field label="Exposure" value={vox.exposure} />
-            <Field label="Status" value={vox.status} />
-            <Field label="Assignee" value={vox.assignee} />
-          </dl>
-
-          <div className="mt-5">
-            <div className="text-xs font-medium uppercase text-slate-500">Customer narrative</div>
-            <p className="mt-2 rounded-md border bg-slate-50/60 p-3 text-sm text-slate-700">
-              {vox.body}
-            </p>
-          </div>
-
-          <div className="mt-6">
-            <div className="text-xs font-medium uppercase text-slate-500">AI signals</div>
-            {suggestedResponse && (
-              <div className="mt-4 rounded-md border border-blue-100 bg-blue-50 p-3">
-                <div className="text-[10px] font-bold uppercase text-blue-500 mb-1">
-                  Suggested Response
-                </div>
-                <p className="text-sm text-slate-700">{suggestedResponse}</p>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {teams.map((t) => (
+          <VoxCard key={t.name} className="p-5 flex flex-col justify-between">
+            <div>
+              <div className="text-sm font-medium text-slate-600">{t.name}</div>
+              <div className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
+                {t.active} <span className="text-sm font-normal text-slate-400">/ {t.max}</span>
               </div>
-            )}
-            {vox.aiAnalysis && (
-              <div className="mt-3 space-y-3">
-                <div className="rounded-md border p-3 bg-slate-50">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase">AI Summary</div>
-                  <p className="text-sm text-slate-700">{vox.aiAnalysis.summary}</p>
-                </div>
+            </div>
+            <div className="mt-4">
+              <div className="flex justify-between text-xs text-slate-500 mb-1">
+                <span>Capacity</span>
+                <span>{Math.round((t.active / t.max) * 100)}%</span>
               </div>
-            )}
-          </div>
-        </div>
+              <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
+                <div 
+                  className={cn("h-full rounded-full", (t.active / t.max) > 0.8 ? "bg-red-500" : (t.active / t.max) > 0.5 ? "bg-amber-500" : "bg-emerald-500")}
+                  style={{ width: `${Math.min(100, (t.active / t.max) * 100)}%` }}
+                />
+              </div>
+            </div>
+          </VoxCard>
+        ))}
+      </div>
 
-        <div className="flex items-center gap-2 border-t bg-slate-50/50 px-6 py-3.5">
-          <VoxButton variant="secondary" size="sm">
-            Escalate
-          </VoxButton>
-          <VoxButton size="sm" className="ml-auto">
-            Resolve
-          </VoxButton>
+      <VoxCard className="p-5">
+        <h3 className="font-semibold text-slate-900 mb-4">Urgent Routing Rules</h3>
+        <div className="space-y-3">
+          {[
+            { rule: "High Financial Exposure (>₹50k)", route: "Priority Resolution Team", status: "Active" },
+            { rule: "Negative Sentiment + High Blast Radius", route: "Escalation Managers", status: "Active" },
+            { rule: "Multiple Similar Issues (Cluster > 5)", route: "Technical Support", status: "Reviewing" }
+          ].map((r, i) => (
+            <div key={i} className="flex items-center justify-between p-3 border rounded-md bg-slate-50/50">
+              <div>
+                <div className="text-sm font-medium text-slate-900">{r.rule}</div>
+                <div className="text-xs text-slate-500 mt-0.5">Routes to {r.route}</div>
+              </div>
+              <VoxBadge tone={r.status === "Active" ? "positive" : "neutral"}>{r.status}</VoxBadge>
+            </div>
+          ))}
         </div>
-      </aside>
+      </VoxCard>
     </div>
   );
 }
@@ -441,12 +484,61 @@ function PillSelect({
     </label>
   );
 }
-
-function Field({ label, value }: { label: string; value: string }) {
+function PerformanceView({ data }: { data: EmployeeComplaint[] }) {
+  const resolvedCount = data.filter(d => d.status === "Resolved" || d.status === "Closed").length;
+  
   return (
-    <div>
-      <dt className="text-[10px] font-bold uppercase text-slate-500">{label}</dt>
-      <dd className="mt-0.5 text-sm font-medium text-slate-900">{value}</dd>
+    <div className="space-y-6">
+      <div>
+        <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Analytics</p>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">My Performance</h1>
+        <p className="mt-1 text-sm text-slate-500">Your resolution metrics and SLA compliance.</p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <VoxCard className="p-5">
+          <div className="text-sm font-medium text-slate-500">Resolutions Today</div>
+          <div className="mt-2 text-3xl font-semibold text-slate-900">{resolvedCount + 4}</div>
+          <div className="mt-1 text-xs text-emerald-600 flex items-center gap-1 font-medium">
+            <ArrowUpRight className="h-3 w-3" /> +2 from yesterday
+          </div>
+        </VoxCard>
+        
+        <VoxCard className="p-5">
+          <div className="text-sm font-medium text-slate-500">Avg. Resolution Time</div>
+          <div className="mt-2 text-3xl font-semibold text-slate-900">1.4 <span className="text-lg">hrs</span></div>
+          <div className="mt-1 text-xs text-emerald-600 flex items-center gap-1 font-medium">
+            <ArrowUpRight className="h-3 w-3 className='rotate-90'" /> 15% faster than avg
+          </div>
+        </VoxCard>
+
+        <VoxCard className="p-5">
+          <div className="text-sm font-medium text-slate-500">SLA Compliance</div>
+          <div className="mt-2 text-3xl font-semibold text-slate-900">98.2%</div>
+          <div className="mt-1 text-xs text-slate-500 font-medium">
+            Top 10% in department
+          </div>
+        </VoxCard>
+      </div>
+
+      <VoxCard className="p-5">
+        <h3 className="font-semibold text-slate-900 mb-4">Recent Achievements</h3>
+        <div className="space-y-4">
+          {[
+            { title: "SLA Champion", desc: "Maintained >95% SLA compliance for 30 consecutive days.", icon: <CheckCircle2 className="h-5 w-5 text-emerald-500" /> },
+            { title: "De-escalation Expert", desc: "Successfully resolved 5 high-priority negative sentiment cases this week.", icon: <UserPlus className="h-5 w-5 text-indigo-500" /> },
+            { title: "Value Saver", desc: "Prevented an estimated ₹120,000 in customer financial exposure today.", icon: <DollarSign className="h-5 w-5 text-amber-500" /> }
+          ].map((ach, i) => (
+            <div key={i} className="flex gap-4 p-4 border rounded-lg bg-white shadow-sm">
+              <div className="mt-0.5">{ach.icon}</div>
+              <div>
+                <div className="text-sm font-semibold text-slate-900">{ach.title}</div>
+                <div className="text-sm text-slate-600 mt-1">{ach.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </VoxCard>
     </div>
   );
 }

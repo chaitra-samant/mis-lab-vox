@@ -30,7 +30,7 @@ export async function _getComplaints(role?: string) {
   
   let query = client
     .from("complaints")
-    .select("*, ai_analyses(*)")
+    .select("*, ai_analyses(*), employees:assigned_to(name)")
     .order("created_at", { ascending: false });
 
   // Filter by the mock customer ID when in the customer portal context.
@@ -48,6 +48,64 @@ export async function _getComplaints(role?: string) {
   
   return data;
 }
+
+export const resolveComplaint = createServerFn({ method: "POST" })
+  .handler(async (args: any) => {
+    const { id } = args?.data || args;
+    const { error } = await supabaseAdmin
+      .from("complaints")
+      .update({ status: "RESOLVED", resolved_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+    return { success: true };
+  });
+
+export const escalateComplaint = createServerFn({ method: "POST" })
+  .handler(async (args: any) => {
+    const { id } = args?.data || args;
+    const { error } = await supabaseAdmin
+      .from("complaints")
+      .update({ status: "ESCALATED", escalated: true, escalated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+    return { success: true };
+  });
+
+export const getEmployees = createServerFn({ method: "GET" })
+  .handler(async () => {
+    const { data, error } = await supabaseAdmin
+      .from("employees")
+      .select("id, name, department")
+      .order("name", { ascending: true });
+    if (error) throw new Error(error.message);
+    return data;
+  });
+
+export const updateComplaint = createServerFn({ method: "POST" })
+  .handler(async (args: any) => {
+    const { id, status, assigned_to } = args?.data || args;
+    
+    const updates: any = {};
+    if (status !== undefined) {
+      updates.status = status;
+      if (status === "RESOLVED" || status === "CLOSED") {
+        updates.resolved_at = new Date().toISOString();
+      } else if (status === "ESCALATED") {
+        updates.escalated = true;
+        updates.escalated_at = new Date().toISOString();
+      }
+    }
+    if (assigned_to !== undefined) {
+      updates.assigned_to = assigned_to || null;
+    }
+
+    const { error } = await supabaseAdmin
+      .from("complaints")
+      .update(updates)
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+    return { success: true };
+  });
 
 export const getCEOMetrics = createServerFn({ method: "GET" }).handler(async () => {
   return _getCEOMetrics();
@@ -142,9 +200,11 @@ export async function _submitComplaint(payload: any) {
 
   // --- AI ANALYSIS & PRIORITY UPDATES ---
   try {
+    console.log(`[AI] Starting analysis for new complaint ${complaint.id}...`);
     const aiResult = await analyzeComplaint(complaint.description, complaint.category);
+    console.log(`[AI] Analysis result for ${complaint.id}:`, JSON.stringify(aiResult, null, 2));
     
-    await supabaseAdmin
+    const { error: aiInsertError } = await supabaseAdmin
       .from("ai_analyses")
       .insert([
         {
@@ -155,8 +215,27 @@ export async function _submitComplaint(payload: any) {
           classification: aiResult.category,
           summary: aiResult.summary,
           financial_loss_estimate: aiResult.financial_loss_estimate,
+          signals: {
+            blast_radius: aiResult.blast_radius,
+            trend_risk: aiResult.trend_risk,
+            business_impact_hint: aiResult.business_impact_hint,
+            similar_issue_cluster: aiResult.similar_issue_cluster,
+            novelty_score: aiResult.novelty_score,
+            failure_point_guess: aiResult.failure_point_guess,
+            dependency_risk: aiResult.dependency_risk,
+            missing_info: aiResult.missing_info,
+            next_best_action: aiResult.next_best_action,
+            auto_routing_hint: aiResult.auto_routing_hint,
+            escalation_reason: aiResult.escalation_reason,
+          },
         },
       ]);
+      
+    if (aiInsertError) {
+      console.error("[AI] Failed to insert AI Analysis:", aiInsertError);
+    } else {
+      console.log(`[AI] Analysis saved successfully for complaint ${complaint.id}`);
+    }
       
     const priorityMap: Record<string, string> = {
       'Low': 'LOW',
@@ -267,4 +346,49 @@ export const getSuggestedResponse = createServerFn({ method: "POST" })
   .handler(async (args: any) => {
     const { category, sentiment, urgency, summary } = args?.data || args;
     return _getSuggestedResponse(category, sentiment, urgency, summary);
+  });
+
+export const reAnalyzeComplaint = createServerFn({ method: "POST" })
+  .handler(async (args: any) => {
+    const { id, description, category } = args?.data || args;
+    
+    console.log(`[AI] Re-analyzing complaint ${id}...`);
+    const aiResult = await analyzeComplaint(description, category);
+    
+    const signals = {
+      blast_radius: aiResult.blast_radius,
+      trend_risk: aiResult.trend_risk,
+      business_impact_hint: aiResult.business_impact_hint,
+      similar_issue_cluster: aiResult.similar_issue_cluster,
+      novelty_score: aiResult.novelty_score,
+      failure_point_guess: aiResult.failure_point_guess,
+      dependency_risk: aiResult.dependency_risk,
+      missing_info: aiResult.missing_info,
+      next_best_action: aiResult.next_best_action,
+      auto_routing_hint: aiResult.auto_routing_hint,
+      escalation_reason: aiResult.escalation_reason,
+    };
+
+    console.log(`[AI] Saving signals for ${id}:`, JSON.stringify(signals, null, 2));
+
+    const { error } = await supabaseAdmin
+      .from("ai_analyses")
+      .upsert({
+        complaint_id: id,
+        sentiment: aiResult.sentiment,
+        sentiment_score: aiResult.sentiment_score,
+        urgency: aiResult.urgency,
+        classification: aiResult.category,
+        summary: aiResult.summary,
+        financial_loss_estimate: aiResult.financial_loss_estimate,
+        signals: signals,
+      }, { onConflict: 'complaint_id' });
+
+    if (error) {
+      console.error("[AI] Upsert error:", error);
+      throw new Error(error.message);
+    }
+    
+    console.log(`[AI] Re-analysis complete and saved for ${id}`);
+    return { success: true };
   });

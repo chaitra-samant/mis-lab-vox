@@ -7,6 +7,17 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- DROP EXISTING TABLES (for clean re-seed)
+DROP TABLE IF EXISTS public.audit_logs CASCADE;
+DROP TABLE IF EXISTS public.notifications CASCADE;
+DROP TABLE IF EXISTS public.faqs CASCADE;
+DROP TABLE IF EXISTS public.clusters CASCADE;
+DROP TABLE IF EXISTS public.ai_analyses CASCADE;
+DROP TABLE IF EXISTS public.messages CASCADE;
+DROP TABLE IF EXISTS public.complaints CASCADE;
+DROP TABLE IF EXISTS public.employees CASCADE;
+DROP TABLE IF EXISTS public.customers CASCADE;
+
 -- ============================================================
 -- 1. CUSTOMERS
 -- ============================================================
@@ -91,12 +102,13 @@ CREATE TABLE IF NOT EXISTS public.ai_analyses (
   updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   complaint_id          UUID NOT NULL UNIQUE REFERENCES public.complaints(id) ON DELETE CASCADE,
   sentiment             TEXT,
-  sentiment_score       NUMERIC(4,3),
+  sentiment_score       NUMERIC(4,3) CHECK (sentiment_score >= -1.0 AND sentiment_score <= 1.0),
   urgency               TEXT,
   classification        TEXT,
   summary               TEXT,
   suggested_response    TEXT,
   financial_loss_estimate NUMERIC(12,2),
+  signals               JSONB,             -- High-value AI Signals
   embedding             TEXT               -- stored as JSON string; pgvector not required in Phase 1
 );
 

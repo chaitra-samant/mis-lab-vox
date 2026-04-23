@@ -21,9 +21,10 @@ import { VoxButton } from "@/components/vox/VoxButton";
 import { cn } from "@/lib/utils";
 import { CEO_WEEKLY_VOLUME, CEO_SENTIMENT_TREND, CEO_THEMES } from "@/lib/mock";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getCEOMetrics, performSemanticSearch } from "@/lib/server/complaints";
+import { VoxDetailSheet, type MappedComplaint, type Priority, type Sentiment, type Status } from "@/components/vox/VoxDetailSheet";
+import { getCEOMetrics, performSemanticSearch, getComplaints, escalateComplaint, resolveComplaint, updateComplaint, getEmployees, getSuggestedResponse } from "@/lib/server/complaints";
 import { supabase } from "@/lib/supabase";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 
 export const Route = createFileRoute("/ceo")({
   beforeLoad: async () => {
@@ -58,11 +59,103 @@ function ExecutivePortal() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [activeTab, setActiveTab] = useState<"Strategic Intelligence" | "Escalated Voxes" | "Lines of Business">("Strategic Intelligence");
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [suggestedResponse, setSuggestedResponse] = useState<string | null>(null);
+
+  const { data: employees = [] } = useQuery({
+    queryKey: ["employees"],
+    queryFn: () => getEmployees(),
+  });
+
+  const { data: allComplaints = [] } = useQuery({
+    queryKey: ["complaints", "ceo"],
+    queryFn: () => getComplaints({ data: "ceo" }),
+  });
+
+  const escalatedComplaints = allComplaints.filter((c: any) => c.status === "ESCALATED" || c.escalated);
+
+  const activeVox = useMemo(() => {
+    if (!activeId) return null;
+    const c = escalatedComplaints.find((c: any) => c.id === activeId);
+    if (!c) return null;
+    return {
+      id: c.id.split("-").pop().toUpperCase().slice(-8),
+      realId: c.id,
+      subject: c.description.slice(0, 50) + (c.description.length > 50 ? "..." : ""),
+      priority: (c.priority || "MEDIUM") as Priority,
+      sentiment: ((Array.isArray(c.ai_analyses) ? c.ai_analyses[0]?.sentiment : c.ai_analyses?.sentiment) || "Neutral") as Sentiment,
+      status: (c.status.charAt(0) + c.status.slice(1).toLowerCase().replace("_", " ")) as Status,
+      assignee: c.employees?.name || "Unassigned",
+      assigneeId: c.assigned_to || null,
+      customer: "Customer",
+      account: "AuraBank Account",
+      exposure: c.financial_loss_customer ? `₹${c.financial_loss_customer}` : "₹0",
+      channel: c.source === "web_form" ? "Web" : "API",
+      ts: new Date(c.created_at).toLocaleString(),
+      body: c.description,
+      aiAnalysis: Array.isArray(c.ai_analyses) ? c.ai_analyses[0] : c.ai_analyses,
+    } as MappedComplaint;
+  }, [activeId, escalatedComplaints]);
+
+  useEffect(() => {
+    async function loadAI() {
+      if (!activeVox) {
+        setSuggestedResponse(null);
+        return;
+      }
+      if (activeVox.aiAnalysis) {
+        const response = await getSuggestedResponse({
+          data: {
+            category: activeVox.aiAnalysis.classification,
+            sentiment: activeVox.aiAnalysis.sentiment,
+            urgency: activeVox.aiAnalysis.urgency,
+            summary: activeVox.aiAnalysis.summary,
+          },
+        });
+        setSuggestedResponse(response);
+      } else {
+        setSuggestedResponse(null);
+      }
+    }
+    loadAI();
+  }, [activeVox]);
+
+  const handleResolve = async (id: string) => {
+    try {
+      await resolveComplaint({ data: { id } });
+      queryClient.invalidateQueries({ queryKey: ["complaints"] });
+      setActiveId(null);
+    } catch (error) {
+      console.error("Failed to resolve complaint:", error);
+    }
+  };
+
+  const handleEscalate = async (id: string) => {
+    try {
+      await escalateComplaint({ data: { id } });
+      queryClient.invalidateQueries({ queryKey: ["complaints"] });
+      setActiveId(null);
+    } catch (error) {
+      console.error("Failed to escalate complaint:", error);
+    }
+  };
+
+  const handleUpdate = async (id: string, updates: { status?: string; assigned_to?: string | null }) => {
+    try {
+      await updateComplaint({ data: { id, ...updates } });
+      queryClient.invalidateQueries({ queryKey: ["complaints"] });
+    } catch (error) {
+      console.error("Failed to update complaint:", error);
+    }
+  };
 
   const { data: metrics, isLoading } = useQuery({
     queryKey: ["ceo-metrics"],
     queryFn: () => getCEOMetrics(),
   });
+
+
 
   // Real-time subscription
   useEffect(() => {
@@ -108,12 +201,13 @@ function ExecutivePortal() {
       portalLabel="Executive"
       user={{ name: "Catherine Bell", role: "Chief Executive Officer" }}
       navItems={[
-        { label: "Strategic Intelligence", icon: <LineChartIcon />, to: "/ceo", active: true },
-        { label: "Risk & Exposure", icon: <ShieldCheck /> },
-        { label: "Lines of Business", icon: <Building2 /> },
+        { label: "Strategic Intelligence", icon: <LineChartIcon />, active: activeTab === "Strategic Intelligence", onClick: () => setActiveTab("Strategic Intelligence") },
+        { label: "Escalated Voxes", icon: <ShieldCheck />, active: activeTab === "Escalated Voxes", onClick: () => setActiveTab("Escalated Voxes") },
+        { label: "Lines of Business", icon: <Building2 />, active: activeTab === "Lines of Business", onClick: () => setActiveTab("Lines of Business") },
       ]}
     >
-      <div className="space-y-8">
+      {activeTab === "Strategic Intelligence" && (
+        <div className="space-y-8">
         {/* Header */}
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -311,6 +405,65 @@ function ExecutivePortal() {
           </VoxCard>
         </div>
       </div>
+      )}
+
+      {activeTab === "Escalated Voxes" && (
+        <div className="space-y-6">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Critical Issues</p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">Escalated Voxes</h1>
+            <p className="mt-1 text-sm text-slate-500">Requires executive review and intervention.</p>
+          </div>
+          
+          {escalatedComplaints.length === 0 ? (
+            <VoxCard className="p-12 text-center text-slate-500">No escalated Voxes at this time.</VoxCard>
+          ) : (
+            <div className="grid gap-4">
+              {escalatedComplaints.map((c: any) => (
+                <VoxCard key={c.id} className="p-5 border-l-4 border-rose-500">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-mono text-xs text-slate-400">{c.id.split("-").pop().toUpperCase().slice(-8)}</span>
+                        <VoxBadge tone="p1">Escalated</VoxBadge>
+                        {c.ai_analyses?.[0]?.financial_loss_estimate > 0 && (
+                          <span className="text-xs font-semibold text-rose-600 bg-rose-50 px-2 py-0.5 rounded">Risk: ₹{c.ai_analyses[0].financial_loss_estimate.toLocaleString()}</span>
+                        )}
+                      </div>
+                      <h3 className="font-semibold text-slate-900 text-lg">{c.description.slice(0, 80)}...</h3>
+                      <p className="text-sm text-slate-600 mt-2">{c.escalation_reason || "Escalated for review."}</p>
+                    </div>
+                    <VoxButton size="sm" variant="secondary" onClick={() => setActiveId(c.id)}>Review Details</VoxButton>
+                  </div>
+                </VoxCard>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "Lines of Business" && (
+        <div className="space-y-6">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Overview</p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">Lines of Business</h1>
+            <p className="mt-1 text-sm text-slate-500">Health and metrics across all divisions.</p>
+          </div>
+          <VoxCard className="p-12 text-center text-slate-500">Line of business detailed breakdown coming soon.</VoxCard>
+        </div>
+      )}
+
+      {activeVox && (
+        <VoxDetailSheet
+          vox={activeVox}
+          suggestedResponse={suggestedResponse}
+          employees={employees}
+          onClose={() => setActiveId(null)}
+          onResolve={handleResolve}
+          onEscalate={handleEscalate}
+          onUpdate={handleUpdate}
+        />
+      )}
     </VoxShell>
   );
 }

@@ -49,6 +49,7 @@ interface NavItem {
   to?: string;
   icon: ReactNode;
   active?: boolean;
+  onClick?: () => void;
 }
 
 interface VoxShellProps {
@@ -89,14 +90,16 @@ export function VoxShell({ accent, portalLabel, navItems = [], user, children }:
       <nav role="navigation" aria-label="Portal navigation" className="flex-1 space-y-0.5 px-3">
         {navItems.map((item) => {
           const Wrapper: any = item.to ? Link : "div";
+          const clickProps = item.onClick && !item.to ? { onClick: item.onClick, role: "button", tabIndex: 0 } : {};
           return (
             <Wrapper
               key={item.label}
               {...(item.to ? { to: item.to } : {})}
+              {...clickProps}
               aria-label={item.label}
               aria-current={item.active ? "page" : undefined}
               className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors cursor-pointer",
                 item.active
                   ? a.activeBg
                   : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
