@@ -18,10 +18,11 @@ function getGroqClient() {
                  (globalThis as any).process?.env?.VITE_GROQ_API_KEY;
 
   if (!apiKey) {
-    console.error("[AI] GROQ_API_KEY is missing! Check your .env.local file.");
+    console.error("[AI] GROQ_API_KEY is missing! Check your .env.local file. Keys checked: GROQ_API_KEY, VITE_GROQ_API_KEY");
     throw new Error("GROQ_API_KEY is missing");
   }
 
+  console.log(`[AI] Groq client initialized with key starting with: ${apiKey.slice(0, 7)}...`);
   _groq = new Groq({ apiKey });
   return _groq;
 }
@@ -52,6 +53,7 @@ export interface AIAnalysisResult {
 
 export interface SemanticSearchResult {
   summary: string;
+  strategic_suggestions: string[];
   relevant_complaint_ids: string[];
 }
 
@@ -188,38 +190,59 @@ export async function getAISuggestions(text: string): Promise<AISuggestion[]> {
  * Performs semantic search over complaint data.
  */
 export async function performSemanticSearch(query: string, complaintData: any[]): Promise<SemanticSearchResult> {
-  console.log(`[AI] Performing semantic search for: ${query}`);
+  console.log(`[AI] Performing semantic search for: "${query}" with ${complaintData?.length || 0} complaints.`);
   
   try {
     const context = complaintData.slice(-30).map(c => 
-      `ID ${c.id?.slice(0,8)}: ${c.description?.slice(0, 200)} (Category: ${c.category}, Sentiment: ${c.sentiment})`
+      `ID ${c.id?.slice(0,8)}: ${c.description?.slice(0, 200)} (Cat: ${c.category}, Sent: ${c.ai_analyses?.[0]?.sentiment || "Neutral"}, Exp: ₹${c.financial_loss_customer || 0})`
     ).join("\n");
 
-    const prompt = `Answer this query about customer complaints: ${query}
+    const prompt = `You are a Senior Business Analyst for the CEO. 
+    Analyze these complaints to answer: "${query}"
     
-    Complaint data:
+    Context:
     ${context}
     
-    Return ONLY a JSON object with keys: "summary" (concise answer) and "relevant_complaint_ids" (array of full IDs).`;
+    Return ONLY a JSON object:
+    {
+      "summary": "1-2 sentence data-driven answer",
+      "strategic_suggestions": ["Suggestion 1", "Suggestion 2"],
+      "relevant_complaint_ids": ["Full ID 1", "Full ID 2"]
+    }
+    
+    Keep suggestions high-level and executive-focused.`;
 
-    const completion = await getGroqClient().chat.completions.create({
+    const client = getGroqClient();
+    console.log(`[AI] Calling Groq with model: ${MODEL}...`);
+
+    const completion = await client.chat.completions.create({
       messages: [{ role: "user", content: prompt }],
       model: MODEL,
-      temperature: 0,
+      temperature: 0.2,
+      max_tokens: 1024,
       response_format: { type: "json_object" },
     });
 
     const content = completion.choices[0]?.message?.content;
-    if (!content) throw new Error("No search results");
+    console.log(`[AI] Groq Search Response received (length: ${content?.length || 0})`);
+
+    if (!content) throw new Error("No search results returned from Groq");
 
     const data = JSON.parse(content);
+    console.log(`[AI] Search JSON parsed successfully.`);
+
     return {
       summary: data.summary || "Unable to find specific answers.",
+      strategic_suggestions: data.strategic_suggestions || [],
       relevant_complaint_ids: data.relevant_complaint_ids || [],
     };
-  } catch (error) {
-    console.error('[AI] Semantic search failed:', error);
-    return { summary: "Search unavailable", relevant_complaint_ids: [] };
+  } catch (error: any) {
+    console.error('[AI] Semantic search failed CRITICAL:', error);
+    // Log more details if it's a Groq error
+    if (error.response) {
+      console.error('[AI] Groq Error Response:', JSON.stringify(error.response, null, 2));
+    }
+    return { summary: `Search unavailable: ${error.message || "Unknown error"}`, strategic_suggestions: [], relevant_complaint_ids: [] };
   }
 }
 
@@ -283,5 +306,68 @@ export async function calculate_churn_risk(customerComplaints: any[]): Promise<n
   } catch (error) {
     console.error('[AI] Churn risk calculation failed:', error);
     return 50;
+  }
+}
+
+/**
+ * Generates high-level strategic insights for the Business Health Report.
+ */
+export async function generateBusinessHealthInsights(metrics: any, themes: any[]): Promise<{ summary: string; recommendations: string[] }> {
+  console.log(`[AI] Generating business health insights for CEO...`);
+  
+  try {
+    const context = `
+    Business Metrics:
+    - Total Volume: ${metrics.totalVolume}
+    - Average Sentiment Score: ${(metrics?.avgSentiment || 0).toFixed(2)} (Range: -1 to 1)
+    - Total Financial Exposure: INR ${metrics.totalExposure.toLocaleString()}
+    - SLA Compliance: ${metrics.slaCompliance}%
+    
+    Top Emerging Themes:
+    ${themes.map(t => `- ${t.label}: ${t.count} complaints (${t.pct}%)`).join("\n")}
+    `;
+
+    const prompt = `You are a Chief Strategy Officer. Analyze these business metrics and complaint themes to provide an executive summary and 3 strategic recommendations.
+    
+    Data Context:
+    ${context}
+    
+    Return ONLY a JSON object:
+    {
+      "summary": "A 2-3 sentence strategic overview. Use 'INR' for currency, DO NOT use symbols like ₹.",
+      "recommendations": [
+        "Actionable recommendation 1",
+        "Actionable recommendation 2",
+        "Actionable recommendation 3"
+      ]
+    }
+    
+    Tone: Professional, data-driven, and authoritative. Focus on financial risk and customer trust.`;
+
+    const completion = await getGroqClient().chat.completions.create({
+      messages: [{ role: "user", content: prompt }],
+      model: MODEL,
+      temperature: 0.3,
+      response_format: { type: "json_object" },
+    });
+
+    const content = completion.choices[0]?.message?.content;
+    if (!content) throw new Error("No content from Groq");
+
+    const data = JSON.parse(content);
+    return {
+      summary: data.summary || "Business remains stable with some areas requiring attention.",
+      recommendations: data.recommendations || ["Review systemic risks", "Monitor sentiment trends", "Optimize SLA performance"]
+    };
+  } catch (error) {
+    console.error('[AI] Business health insights failed:', error);
+    return {
+      summary: "Strategic data overview currently unavailable. Metrics show typical volume patterns.",
+      recommendations: [
+        "Audit high-exposure categories for root cause analysis.",
+        "Strengthen SLA monitoring for critical departments.",
+        "Expand proactive customer outreach for negative sentiment clusters."
+      ]
+    };
   }
 }

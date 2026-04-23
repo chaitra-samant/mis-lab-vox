@@ -508,7 +508,7 @@ function PerformanceView({ data }: { data: EmployeeComplaint[] }) {
           <div className="text-sm font-medium text-slate-500">Avg. Resolution Time</div>
           <div className="mt-2 text-3xl font-semibold text-slate-900">1.4 <span className="text-lg">hrs</span></div>
           <div className="mt-1 text-xs text-emerald-600 flex items-center gap-1 font-medium">
-            <ArrowUpRight className="h-3 w-3 className='rotate-90'" /> 15% faster than avg
+            <ArrowUpRight className="h-3 w-3 rotate-90" /> 15% faster than avg
           </div>
         </VoxCard>
 

@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabase, supabaseAdmin } from "../supabase";
-import { analyzeComplaint, calculate_churn_risk, getAISuggestions as _getAISuggestions, getSuggestedResponse as _getSuggestedResponse, performSemanticSearch as _performSemanticSearch } from "./ai";
+import { analyzeComplaint, calculate_churn_risk, generateBusinessHealthInsights, getAISuggestions as _getAISuggestions, getSuggestedResponse as _getSuggestedResponse, performSemanticSearch as _performSemanticSearch } from "./ai";
 
 export const performSemanticSearch = createServerFn({ method: "POST" })
   .handler(async (args: any) => {
@@ -123,11 +123,11 @@ export async function _getCEOMetrics() {
 
   const { data: sentimentData } = await client
     .from("ai_analyses")
-    .select("sentiment");
+    .select("sentiment_score");
     
-  const negativeCount = sentimentData?.filter(s => s.sentiment === 'Negative').length || 0;
-  const negativeRatio = sentimentData && sentimentData.length > 0 
-    ? (negativeCount / sentimentData.length) * 100 
+  const totalScore = sentimentData?.reduce((acc, curr) => acc + (Number(curr.sentiment_score) || 0), 0) || 0;
+  const avgSentiment = sentimentData && sentimentData.length > 0 
+    ? totalScore / sentimentData.length 
     : 0;
 
   const { data: exposureData } = await client
@@ -138,7 +138,7 @@ export async function _getCEOMetrics() {
 
   return {
     totalVolume,
-    negativeRatio,
+    avgSentiment,
     totalExposure,
     slaCompliance: 96.8
   };
@@ -391,4 +391,37 @@ export const reAnalyzeComplaint = createServerFn({ method: "POST" })
     
     console.log(`[AI] Re-analysis complete and saved for ${id}`);
     return { success: true };
+  });
+
+export const generateBusinessHealthReport = createServerFn({ method: "POST" })
+  .handler(async (args: any) => {
+    const { themes } = args?.data || args;
+    console.log("[AI] Generating business health report data...");
+    
+    const metrics = await _getCEOMetrics();
+    const insights = await generateBusinessHealthInsights(metrics, themes);
+    
+    // Get departmental breakdown for the report table
+    const { data: complaints } = await supabaseAdmin
+      .from("complaints")
+      .select("category, financial_loss_customer");
+      
+    const deptStats: Record<string, { volume: number, exposure: number }> = {};
+    complaints?.forEach((c: any) => {
+      const cat = c.category || "Uncategorized";
+      if (!deptStats[cat]) deptStats[cat] = { volume: 0, exposure: 0 };
+      deptStats[cat].volume += 1;
+      deptStats[cat].exposure += Number(c.financial_loss_customer) || 0;
+    });
+
+    return {
+      metrics,
+      insights,
+      themes,
+      departmentData: Object.entries(deptStats).map(([name, stats]) => ({
+        name,
+        ...stats
+      })).sort((a, b) => b.exposure - a.exposure),
+      timestamp: new Date().toISOString()
+    };
   });
