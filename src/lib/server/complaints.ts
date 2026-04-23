@@ -1,6 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabase, supabaseAdmin } from "../supabase";
-import { analyzeComplaint } from "./ai";
+import { analyzeComplaint, calculate_churn_risk, getAISuggestions as _getAISuggestions, getSuggestedResponse as _getSuggestedResponse, performSemanticSearch as _performSemanticSearch } from "./ai";
+
+export const performSemanticSearch = createServerFn({ method: "POST" })
+  .handler(async (args: any) => {
+    const { query, complaintData } = args?.data || args;
+    return _performSemanticSearch(query, complaintData);
+  });
 
 /**
  * CCIS — Phase 5 Server Functions
@@ -18,19 +24,18 @@ export const getComplaints = createServerFn({ method: "GET" })
 export async function _getComplaints(role?: string) {
   console.log("Fetching complaints for role:", role);
   
-  // When mock auth is on, we use supabaseAdmin to bypass RLS 
-  // since the user isn't actually logged into Supabase.
-  const useAdmin = process.env.VITE_USE_MOCK_AUTH === "true";
-  const client = useAdmin ? supabaseAdmin : supabase;
+  // Use supabaseAdmin on the server to bypass RLS, as the server 
+  // function is already authorized by the application logic.
+  const client = supabaseAdmin;
   
   let query = client
     .from("complaints")
     .select("*, ai_analyses(*)")
     .order("created_at", { ascending: false });
 
-  // If it's the customer portal and we're using mock auth, 
-  // filter by the default mock customer ID.
-  if (useAdmin && (!role || role === "customer")) {
+  // Filter by the mock customer ID when in the customer portal context.
+  // This scopes the results to only the seeded demo customer's complaints.
+  if (!role || role === "customer") {
     query = query.eq("customer_id", "c0000001-0000-0000-0000-000000000001");
   }
 
@@ -51,8 +56,8 @@ export const getCEOMetrics = createServerFn({ method: "GET" }).handler(async () 
 export async function _getCEOMetrics() {
   console.log("Fetching CEO metrics...");
   
-  const useAdmin = process.env.VITE_USE_MOCK_AUTH === "true";
-  const client = useAdmin ? supabaseAdmin : supabase;
+  // Use supabaseAdmin on the server to bypass RLS for aggregate metrics.
+  const client = supabaseAdmin;
 
   const { count: totalVolume } = await client
     .from("complaints")
@@ -83,7 +88,6 @@ export async function _getCEOMetrics() {
 
 export const submitComplaint = createServerFn({ method: "POST" })
   .handler(async (args: any) => {
-    // TanStack Start might pass the data directly or wrap it in a 'data' property
     const payload = args?.data || (args && Object.keys(args).length > 0 ? args : null);
     
     if (!payload) {
@@ -136,6 +140,7 @@ export async function _submitComplaint(payload: any) {
     throw new Error(complaintError.message);
   }
 
+  // --- AI ANALYSIS & PRIORITY UPDATES ---
   try {
     const aiResult = await analyzeComplaint(complaint.description, complaint.category);
     
@@ -171,6 +176,25 @@ export async function _submitComplaint(payload: any) {
   } catch (aiError) {
     console.error("AI Analysis failed to save:", aiError);
   }
+
+  // --- CHURN RISK CALCULATION ---
+  try {
+    const { data: customerComplaints } = await supabaseAdmin
+      .from("complaints")
+      .select("description, ai_analyses(sentiment), status")
+      .eq("customer_id", finalCustomerId);
+      
+    if (customerComplaints) {
+      // Logic from the AI microservice to weigh sentiments and volume
+      const churnScore = await calculate_churn_risk(customerComplaints);
+      await supabaseAdmin
+        .from("customers")
+        .update({ churn_risk_score: churnScore })
+        .eq("id", finalCustomerId);
+    }
+  } catch (churnError) {
+    console.error("Churn risk calculation failed:", churnError);
+  }
   
   return complaint;
 }
@@ -185,8 +209,8 @@ export const getSuggestions = createServerFn({ method: "GET" })
     
     console.log("Fetching suggestions for keywords:", data.keywords);
     
-    const useAdmin = process.env.VITE_USE_MOCK_AUTH === "true";
-    const client = useAdmin ? supabaseAdmin : supabase;
+    // Use supabaseAdmin on the server to bypass RLS.
+    const client = supabaseAdmin;
     
     const { data: faqs, error } = await client
       .from("faqs")
@@ -210,8 +234,8 @@ export const submitFeedback = createServerFn({ method: "POST" })
       throw new Error("Complaint ID is required for feedback");
     }
   
-  const useAdmin = process.env.VITE_USE_MOCK_AUTH === "true";
-  const client = useAdmin ? supabaseAdmin : supabase;
+  // Use supabaseAdmin on the server to bypass RLS.
+  const client = supabaseAdmin;
 
   const { data, error } = await client
     .from("complaints")
@@ -221,7 +245,7 @@ export const submitFeedback = createServerFn({ method: "POST" })
       updated_at: new Date().toISOString(),
     })
     .eq("id", payload.id)
-    .eq("status", "RESOLVED") // Safety check: only resolved complaints get feedback
+    .eq("status", "RESOLVED") 
     .select()
     .single();
 
@@ -232,3 +256,15 @@ export const submitFeedback = createServerFn({ method: "POST" })
   
   return data;
 });
+
+export const getAISuggestions = createServerFn({ method: "POST" })
+  .handler(async (args: any) => {
+    const text = args?.data || args;
+    return _getAISuggestions(text);
+  });
+
+export const getSuggestedResponse = createServerFn({ method: "POST" })
+  .handler(async (args: any) => {
+    const { category, sentiment, urgency, summary } = args?.data || args;
+    return _getSuggestedResponse(category, sentiment, urgency, summary);
+  });

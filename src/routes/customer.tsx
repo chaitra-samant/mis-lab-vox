@@ -59,7 +59,7 @@ function CustomerPortal() {
   const queryClient = useQueryClient();
   const { data: realComplaints, isLoading } = useQuery({
     queryKey: ["complaints", "customer"],
-    queryFn: () => getComplaints(),
+    queryFn: () => getComplaints({ data: "customer" }),
   });
 
   // Real-time subscription

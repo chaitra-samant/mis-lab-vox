@@ -177,6 +177,7 @@ function LandingPage() {
               desc: "Sentiment, urgency, and root-cause clustering surface what matters.",
             },
             {
+              icon: Inbox,
               title: "Workflow that disappears",
               desc: "Employees resolve more — Vox handles triage, routing, and SLA tracking.",
             },

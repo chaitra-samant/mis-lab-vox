@@ -15,6 +15,16 @@ export interface AIAnalysisResult {
   department: string;
   financial_loss_estimate: number | null;
 }
+export interface AISuggestion {
+  title: string;
+  description: string;
+}
+
+export interface SemanticSearchResult {
+  summary: string;
+  relevant_complaint_ids: string[];
+}
+
 
 export async function analyzeComplaint(text: string, category?: string): Promise<AIAnalysisResult> {
   console.log(`[AI] Analyzing complaint text (length: ${text.length})...`);
@@ -51,5 +61,97 @@ export async function analyzeComplaint(text: string, category?: string): Promise
       department: 'Operations',
       financial_loss_estimate: null,
     };
+  }
+}
+export async function getAISuggestions(text: string): Promise<AISuggestion[]> {
+  console.log(`[AI] Getting suggestions for text (${text.length} chars)...`);
+  
+  try {
+    const response = await fetch(`${AI_SERVICE_URL}/suggestions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ text }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`AI service error (${response.status}): ${await response.text()}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('[AI] Suggestions failed:', error);
+    return [];
+  }
+}
+
+export async function performSemanticSearch(query: string, complaintData: any[]): Promise<SemanticSearchResult> {
+  console.log(`[AI] Performing semantic search for: ${query}`);
+  
+  try {
+    const response = await fetch(`${AI_SERVICE_URL}/semantic-search`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query, complaint_data: complaintData }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`AI service error (${response.status}): ${await response.text()}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('[AI] Semantic search failed:', error);
+    return { summary: "Search unavailable", relevant_complaint_ids: [] };
+  }
+}
+
+export async function getSuggestedResponse(category: string, sentiment: string, urgency: string, summary: string): Promise<string> {
+  console.log(`[AI] Getting suggested response for ${category} complaint...`);
+  
+  try {
+    const response = await fetch(`${AI_SERVICE_URL}/suggested-response?category=${encodeURIComponent(category)}&sentiment=${encodeURIComponent(sentiment)}&urgency=${encodeURIComponent(urgency)}&summary=${encodeURIComponent(summary)}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`AI service error (${response.status}): ${await response.text()}`);
+    }
+
+    const result = await response.json();
+    return result.suggested_response;
+  } catch (error) {
+    console.error('[AI] Suggested response failed:', error);
+    return "Thank you for your patience. We're working on resolving this issue and will update you soon.";
+  }
+}
+
+export async function calculate_churn_risk(customerComplaints: any[]): Promise<number> {
+  console.log(`[AI] Calculating churn risk for ${customerComplaints.length} complaints...`);
+  
+  try {
+    const response = await fetch(`${AI_SERVICE_URL}/churn-risk`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ customer_complaints: customerComplaints }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`AI service error (${response.status}): ${await response.text()}`);
+    }
+
+    const result = await response.json();
+    return result.churn_risk_score;
+  } catch (error) {
+    console.error('[AI] Churn risk calculation failed:', error);
+    return 0.5; // Default medium risk
   }
 }

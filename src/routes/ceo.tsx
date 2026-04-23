@@ -11,27 +11,19 @@ import {
   ShieldCheck,
   Flame,
   Building2,
+  Search,
 } from "lucide-react";
-import {
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-} from "recharts";
+import { AreaChart, Area, ResponsiveContainer } from "recharts";
 import { VoxShell } from "@/components/vox/VoxShell";
 import { VoxCard } from "@/components/vox/VoxCard";
 import { VoxBadge } from "@/components/vox/VoxBadge";
+import { VoxButton } from "@/components/vox/VoxButton";
 import { cn } from "@/lib/utils";
 import { CEO_WEEKLY_VOLUME, CEO_SENTIMENT_TREND, CEO_THEMES } from "@/lib/mock";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getCEOMetrics } from "@/lib/server/complaints";
+import { getCEOMetrics, performSemanticSearch } from "@/lib/server/complaints";
 import { supabase } from "@/lib/supabase";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export const Route = createFileRoute("/ceo")({
   beforeLoad: async () => {
@@ -47,9 +39,15 @@ export const Route = createFileRoute("/ceo")({
   head: () => ({
     meta: [
       { title: "Executive Intelligence — Vox" },
-      { name: "description", content: "Strategic KPIs, financial exposure, and root-cause clusters at a glance." },
+      {
+        name: "description",
+        content: "Strategic KPIs, financial exposure, and root-cause clusters at a glance.",
+      },
       { property: "og:title", content: "Executive Intelligence — Vox" },
-      { property: "og:description", content: "Volume, sentiment, exposure, and systemic risk in one monochromatic view." },
+      {
+        property: "og:description",
+        content: "Volume, sentiment, exposure, and systemic risk in one monochromatic view.",
+      },
     ],
   }),
   component: ExecutivePortal,
@@ -57,6 +55,10 @@ export const Route = createFileRoute("/ceo")({
 
 function ExecutivePortal() {
   const queryClient = useQueryClient();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any>(null);
+  const [isSearching, setIsSearching] = useState(false);
+
   const { data: metrics, isLoading } = useQuery({
     queryKey: ["ceo-metrics"],
     queryFn: () => getCEOMetrics(),
@@ -66,19 +68,35 @@ function ExecutivePortal() {
   useEffect(() => {
     const channel = supabase
       .channel("ceo-updates")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "complaints" },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["ceo-metrics"] });
-        }
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "complaints" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["ceo-metrics"] });
+      })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, [queryClient]);
+
+  const performSearch = async () => {
+    if (!searchQuery.trim()) return;
+    setIsSearching(true);
+
+    try {
+      // Get complaint data for search
+      const { data: complaints } = await supabase
+        .from("complaints")
+        .select("id, description, category, ai_analyses(*)")
+        .limit(100);
+
+      const results = await performSemanticSearch({ data: { query: searchQuery, complaintData: complaints || [] } });
+      setSearchResults(results);
+    } catch (error) {
+      console.error("Search failed:", error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   const volumeValue = metrics?.totalVolume?.toLocaleString() || "0";
   const sentimentValue = metrics ? `−${metrics.negativeRatio.toFixed(1)}%` : "0%";
@@ -183,6 +201,60 @@ function ExecutivePortal() {
           />
         </div>
 
+        {/* Semantic Search Integration */}
+        <div className="mt-8">
+          <VoxCard className="p-6">
+            <div className="mb-4">
+              <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                Semantic Search
+              </p>
+              <h2 className="mt-1 text-base font-semibold text-slate-900">
+                Ask questions about complaint patterns
+              </h2>
+            </div>
+
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && performSearch()}
+                  placeholder="e.g., What caused the most financial loss last month?"
+                  className="w-full rounded-md border border-slate-200 pl-10 pr-3 py-2 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                />
+              </div>
+              <VoxButton onClick={performSearch} size="sm" disabled={isSearching}>
+                {isSearching ? "Searching..." : "Search"}
+              </VoxButton>
+            </div>
+
+            {searchResults && (
+              <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="rounded-lg bg-slate-50 p-4 border border-slate-100">
+                  <p className="text-sm leading-relaxed text-slate-700">{searchResults.summary}</p>
+                  {searchResults.relevant_complaint_ids.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-tight text-slate-400">
+                        Relevant Voxes:
+                      </span>
+                      {searchResults.relevant_complaint_ids.map((id: string) => (
+                        <span
+                          key={id}
+                          className="text-[10px] font-mono bg-white border border-slate-200 px-1.5 py-0.5 rounded text-slate-600"
+                        >
+                          {id.split("-")[0]}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </VoxCard>
+        </div>
+
         {/* Wider panels */}
         <div className="grid gap-4 lg:grid-cols-5">
           <VoxCard className="p-6 lg:col-span-3">
@@ -245,7 +317,6 @@ function ExecutivePortal() {
 
 const themes = CEO_THEMES;
 
-
 interface KpiProps {
   title: string;
   value: string;
@@ -259,7 +330,17 @@ interface KpiProps {
   caption: string;
 }
 
-function KpiCard({ title, value, unit, delta, up, down, icon: Icon, sparklineData, caption }: KpiProps) {
+function KpiCard({
+  title,
+  value,
+  unit,
+  delta,
+  up,
+  down,
+  icon: Icon,
+  sparklineData,
+  caption,
+}: KpiProps) {
   return (
     <VoxCard className="p-5">
       <div className="flex items-start justify-between">
@@ -313,14 +394,9 @@ function KpiCard({ title, value, unit, delta, up, down, icon: Icon, sparklineDat
   );
 }
 
-
-function Sparkline() {
-  return null; // replaced by Recharts AreaChart inside KpiCard
-}
 function Heatmap() {
   const rows = ["Retail", "Premier", "Business", "Wealth", "Treasury"];
   const cols = ["Payments", "Cards", "KYC", "Statements", "Digital", "Disputes"];
-  // deterministic intensities 0..1
   const intensities = [
     [0.6, 0.4, 0.85, 0.3, 0.5, 0.45],
     [0.5, 0.3, 0.65, 0.4, 0.35, 0.3],
