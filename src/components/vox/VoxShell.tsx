@@ -10,37 +10,44 @@ import {
   Bell,
   LogOut,
   Search,
+  User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { VoxLogo } from "./VoxLogo";
 import { VoxButton } from "./VoxButton";
 
-export type PortalAccent = "blue" | "indigo" | "violet" | "emerald";
+export type PortalAccent = "blue" | "indigo" | "violet" | "emerald" | "black";
 
 const accentClasses = {
   blue: {
-    activeBg: "bg-blue-50 text-blue-700",
-    activeBar: "bg-blue-600",
-    dot: "bg-blue-600",
+    activeBg: "bg-blue-600 text-white",
+    activeBar: "bg-white",
+    dot: "bg-white",
     label: "text-blue-700",
   },
   indigo: {
-    activeBg: "bg-indigo-50 text-indigo-700",
-    activeBar: "bg-indigo-600",
-    dot: "bg-indigo-600",
+    activeBg: "bg-indigo-600 text-white",
+    activeBar: "bg-white",
+    dot: "bg-white",
     label: "text-indigo-700",
   },
   violet: {
-    activeBg: "bg-violet-50 text-violet-700",
-    activeBar: "bg-violet-600",
-    dot: "bg-violet-600",
+    activeBg: "bg-violet-600 text-white",
+    activeBar: "bg-white",
+    dot: "bg-white",
     label: "text-violet-700",
   },
   emerald: {
-    activeBg: "bg-emerald-50 text-emerald-700",
-    activeBar: "bg-emerald-600",
-    dot: "bg-emerald-600",
+    activeBg: "bg-emerald-600 text-white",
+    activeBar: "bg-white",
+    dot: "bg-white",
     label: "text-emerald-700",
+  },
+  black: {
+    activeBg: "bg-slate-900 text-white",
+    activeBar: "bg-slate-950",
+    dot: "bg-slate-900",
+    label: "text-slate-900",
   },
 } as const;
 
@@ -86,7 +93,7 @@ export function VoxShell({
   const SidebarContent = () => (
     <div className="flex h-full flex-col">
       <div className="flex h-16 items-center justify-between border-b border-slate-200/60 px-5">
-        <VoxLogo accent={accent === "emerald" ? "emerald" : accent === "violet" ? "violet" : "black"} />
+        <VoxLogo accent={accent} />
         <button
           onClick={() => setMobileOpen(false)}
           className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 lg:hidden"
@@ -208,7 +215,13 @@ export function VoxShell({
               type="search"
               placeholder="Search Voxes, accounts, themes…"
               aria-label="Search Voxes, accounts, and themes"
-              className="h-9 w-full rounded-md border border-slate-200 bg-slate-50/50 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-400"
+              className={cn(
+                "h-9 w-full rounded-md border border-slate-200 bg-slate-50/50 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 transition-all focus:bg-white focus:outline-none focus:ring-2",
+                accent === "blue" && "focus:border-blue-500 focus:ring-blue-500/20",
+                accent === "violet" && "focus:border-violet-500 focus:ring-violet-500/20",
+                accent === "emerald" && "focus:border-emerald-500 focus:ring-emerald-500/20",
+                accent === "black" && "focus:border-slate-900 focus:ring-slate-900/20"
+              )}
             />
           </div>
 
@@ -218,6 +231,11 @@ export function VoxShell({
             </VoxButton>
             <VoxButton variant="ghost" size="icon" aria-label="Settings">
               <Settings />
+            </VoxButton>
+            <VoxButton variant="ghost" size="icon" asChild aria-label="Profile">
+              <Link to={`/${accent === "blue" ? "customer" : accent === "emerald" ? "employee" : "ceo"}/profile`}>
+                <User />
+              </Link>
             </VoxButton>
           </div>
         </header>

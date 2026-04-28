@@ -14,10 +14,15 @@ import { Route as EmployeeRouteImport } from './routes/employee'
 import { Route as CustomerRouteImport } from './routes/customer'
 import { Route as CeoRouteImport } from './routes/ceo'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as EmployeeIndexRouteImport } from './routes/employee/index'
 import { Route as CustomerIndexRouteImport } from './routes/customer/index'
+import { Route as CeoIndexRouteImport } from './routes/ceo/index'
+import { Route as EmployeeProfileRouteImport } from './routes/employee/profile'
+import { Route as CustomerProfileRouteImport } from './routes/customer/profile'
 import { Route as CustomerHistoryRouteImport } from './routes/customer/history'
 import { Route as CustomerDocumentsRouteImport } from './routes/customer/documents'
 import { Route as CustomerComplaintsRouteImport } from './routes/customer/complaints'
+import { Route as CeoProfileRouteImport } from './routes/ceo/profile'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -44,9 +49,29 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EmployeeIndexRoute = EmployeeIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => EmployeeRoute,
+} as any)
 const CustomerIndexRoute = CustomerIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => CustomerRoute,
+} as any)
+const CeoIndexRoute = CeoIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => CeoRoute,
+} as any)
+const EmployeeProfileRoute = EmployeeProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => EmployeeRoute,
+} as any)
+const CustomerProfileRoute = CustomerProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
   getParentRoute: () => CustomerRoute,
 } as any)
 const CustomerHistoryRoute = CustomerHistoryRouteImport.update({
@@ -64,39 +89,57 @@ const CustomerComplaintsRoute = CustomerComplaintsRouteImport.update({
   path: '/complaints',
   getParentRoute: () => CustomerRoute,
 } as any)
+const CeoProfileRoute = CeoProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => CeoRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/ceo': typeof CeoRoute
+  '/ceo': typeof CeoRouteWithChildren
   '/customer': typeof CustomerRouteWithChildren
-  '/employee': typeof EmployeeRoute
+  '/employee': typeof EmployeeRouteWithChildren
   '/login': typeof LoginRoute
+  '/ceo/profile': typeof CeoProfileRoute
   '/customer/complaints': typeof CustomerComplaintsRoute
   '/customer/documents': typeof CustomerDocumentsRoute
   '/customer/history': typeof CustomerHistoryRoute
+  '/customer/profile': typeof CustomerProfileRoute
+  '/employee/profile': typeof EmployeeProfileRoute
+  '/ceo/': typeof CeoIndexRoute
   '/customer/': typeof CustomerIndexRoute
+  '/employee/': typeof EmployeeIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/ceo': typeof CeoRoute
-  '/employee': typeof EmployeeRoute
   '/login': typeof LoginRoute
+  '/ceo/profile': typeof CeoProfileRoute
   '/customer/complaints': typeof CustomerComplaintsRoute
   '/customer/documents': typeof CustomerDocumentsRoute
   '/customer/history': typeof CustomerHistoryRoute
+  '/customer/profile': typeof CustomerProfileRoute
+  '/employee/profile': typeof EmployeeProfileRoute
+  '/ceo': typeof CeoIndexRoute
   '/customer': typeof CustomerIndexRoute
+  '/employee': typeof EmployeeIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/ceo': typeof CeoRoute
+  '/ceo': typeof CeoRouteWithChildren
   '/customer': typeof CustomerRouteWithChildren
-  '/employee': typeof EmployeeRoute
+  '/employee': typeof EmployeeRouteWithChildren
   '/login': typeof LoginRoute
+  '/ceo/profile': typeof CeoProfileRoute
   '/customer/complaints': typeof CustomerComplaintsRoute
   '/customer/documents': typeof CustomerDocumentsRoute
   '/customer/history': typeof CustomerHistoryRoute
+  '/customer/profile': typeof CustomerProfileRoute
+  '/employee/profile': typeof EmployeeProfileRoute
+  '/ceo/': typeof CeoIndexRoute
   '/customer/': typeof CustomerIndexRoute
+  '/employee/': typeof EmployeeIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -106,20 +149,28 @@ export interface FileRouteTypes {
     | '/customer'
     | '/employee'
     | '/login'
+    | '/ceo/profile'
     | '/customer/complaints'
     | '/customer/documents'
     | '/customer/history'
+    | '/customer/profile'
+    | '/employee/profile'
+    | '/ceo/'
     | '/customer/'
+    | '/employee/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/ceo'
-    | '/employee'
     | '/login'
+    | '/ceo/profile'
     | '/customer/complaints'
     | '/customer/documents'
     | '/customer/history'
+    | '/customer/profile'
+    | '/employee/profile'
+    | '/ceo'
     | '/customer'
+    | '/employee'
   id:
     | '__root__'
     | '/'
@@ -127,17 +178,22 @@ export interface FileRouteTypes {
     | '/customer'
     | '/employee'
     | '/login'
+    | '/ceo/profile'
     | '/customer/complaints'
     | '/customer/documents'
     | '/customer/history'
+    | '/customer/profile'
+    | '/employee/profile'
+    | '/ceo/'
     | '/customer/'
+    | '/employee/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  CeoRoute: typeof CeoRoute
+  CeoRoute: typeof CeoRouteWithChildren
   CustomerRoute: typeof CustomerRouteWithChildren
-  EmployeeRoute: typeof EmployeeRoute
+  EmployeeRoute: typeof EmployeeRouteWithChildren
   LoginRoute: typeof LoginRoute
 }
 
@@ -178,11 +234,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/employee/': {
+      id: '/employee/'
+      path: '/'
+      fullPath: '/employee/'
+      preLoaderRoute: typeof EmployeeIndexRouteImport
+      parentRoute: typeof EmployeeRoute
+    }
     '/customer/': {
       id: '/customer/'
       path: '/'
       fullPath: '/customer/'
       preLoaderRoute: typeof CustomerIndexRouteImport
+      parentRoute: typeof CustomerRoute
+    }
+    '/ceo/': {
+      id: '/ceo/'
+      path: '/'
+      fullPath: '/ceo/'
+      preLoaderRoute: typeof CeoIndexRouteImport
+      parentRoute: typeof CeoRoute
+    }
+    '/employee/profile': {
+      id: '/employee/profile'
+      path: '/profile'
+      fullPath: '/employee/profile'
+      preLoaderRoute: typeof EmployeeProfileRouteImport
+      parentRoute: typeof EmployeeRoute
+    }
+    '/customer/profile': {
+      id: '/customer/profile'
+      path: '/profile'
+      fullPath: '/customer/profile'
+      preLoaderRoute: typeof CustomerProfileRouteImport
       parentRoute: typeof CustomerRoute
     }
     '/customer/history': {
@@ -206,13 +290,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CustomerComplaintsRouteImport
       parentRoute: typeof CustomerRoute
     }
+    '/ceo/profile': {
+      id: '/ceo/profile'
+      path: '/profile'
+      fullPath: '/ceo/profile'
+      preLoaderRoute: typeof CeoProfileRouteImport
+      parentRoute: typeof CeoRoute
+    }
   }
 }
+
+interface CeoRouteChildren {
+  CeoProfileRoute: typeof CeoProfileRoute
+  CeoIndexRoute: typeof CeoIndexRoute
+}
+
+const CeoRouteChildren: CeoRouteChildren = {
+  CeoProfileRoute: CeoProfileRoute,
+  CeoIndexRoute: CeoIndexRoute,
+}
+
+const CeoRouteWithChildren = CeoRoute._addFileChildren(CeoRouteChildren)
 
 interface CustomerRouteChildren {
   CustomerComplaintsRoute: typeof CustomerComplaintsRoute
   CustomerDocumentsRoute: typeof CustomerDocumentsRoute
   CustomerHistoryRoute: typeof CustomerHistoryRoute
+  CustomerProfileRoute: typeof CustomerProfileRoute
   CustomerIndexRoute: typeof CustomerIndexRoute
 }
 
@@ -220,6 +324,7 @@ const CustomerRouteChildren: CustomerRouteChildren = {
   CustomerComplaintsRoute: CustomerComplaintsRoute,
   CustomerDocumentsRoute: CustomerDocumentsRoute,
   CustomerHistoryRoute: CustomerHistoryRoute,
+  CustomerProfileRoute: CustomerProfileRoute,
   CustomerIndexRoute: CustomerIndexRoute,
 }
 
@@ -227,11 +332,25 @@ const CustomerRouteWithChildren = CustomerRoute._addFileChildren(
   CustomerRouteChildren,
 )
 
+interface EmployeeRouteChildren {
+  EmployeeProfileRoute: typeof EmployeeProfileRoute
+  EmployeeIndexRoute: typeof EmployeeIndexRoute
+}
+
+const EmployeeRouteChildren: EmployeeRouteChildren = {
+  EmployeeProfileRoute: EmployeeProfileRoute,
+  EmployeeIndexRoute: EmployeeIndexRoute,
+}
+
+const EmployeeRouteWithChildren = EmployeeRoute._addFileChildren(
+  EmployeeRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  CeoRoute: CeoRoute,
+  CeoRoute: CeoRouteWithChildren,
   CustomerRoute: CustomerRouteWithChildren,
-  EmployeeRoute: EmployeeRoute,
+  EmployeeRoute: EmployeeRouteWithChildren,
   LoginRoute: LoginRoute,
 }
 export const routeTree = rootRouteImport
