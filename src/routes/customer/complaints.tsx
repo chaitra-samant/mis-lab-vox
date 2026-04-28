@@ -3,17 +3,18 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
   Home, MessageSquare, Clock, FileText, ChevronRight, Loader2,
   X, AlertTriangle, IndianRupee, Tag, Calendar, User, Cpu,
-  CheckCircle2, RefreshCw, Send, TrendingUp, Star,
+  CheckCircle2, RefreshCw, Send, TrendingUp, Star, LayoutDashboard
 } from "lucide-react";
 import { VoxShell } from "@/components/vox/VoxShell";
 import { VoxCard } from "@/components/vox/VoxCard";
 import { VoxBadge } from "@/components/vox/VoxBadge";
 import { VoxButton } from "@/components/vox/VoxButton";
+import { VoxChat } from "@/components/vox/VoxChat";
 import { FeedbackModal } from "@/components/vox/FeedbackModal";
 import { MOCK_CUSTOMER } from "@/lib/mock";
 import { formatDistanceToNow, format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getComplaints, submitFeedback } from "@/lib/server/complaints";
+import { getComplaints, submitFeedback, sendMessage } from "@/lib/server/complaints";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/customer/complaints")({
@@ -80,9 +81,20 @@ function StepTracker({ step }: { step: number }) {
 }
 
 function DetailDrawer({ complaint: c, onClose, onFeedback }: { complaint: any; onClose: () => void; onFeedback: () => void }) {
+  const [activeTab, setActiveTab] = useState<"overview" | "chat">("overview");
   const analysis = Array.isArray(c.ai_analyses) ? c.ai_analyses[0] : c.ai_analyses;
   const step = statusToStep[c.status] ?? 0;
   const isResolved = c.status === "RESOLVED" || c.status === "CLOSED";
+  const queryClient = useQueryClient();
+
+  const handleSendMessage = async (content: string) => {
+    try {
+      await sendMessage({ data: { complaintId: c.id, role: "customer", content } });
+      queryClient.invalidateQueries({ queryKey: ["complaints"] });
+    } catch (error) {
+      console.error("Failed to send message:", error);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex">
@@ -105,156 +117,198 @@ function DetailDrawer({ complaint: c, onClose, onFeedback }: { complaint: any; o
           </button>
         </div>
 
-        <div className="flex-1 space-y-6 p-6">
-          {/* Progress tracker */}
-          <VoxCard className="p-5">
-            <p className="mb-4 text-xs font-medium uppercase tracking-wider text-slate-500">Resolution Progress</p>
-            <StepTracker step={step} />
-          </VoxCard>
-
-          {/* Meta grid */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-lg border border-slate-200 p-3.5">
-              <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-slate-400 mb-1.5">
-                <Calendar className="h-3 w-3" /> Submitted
-              </div>
-              <p className="text-sm font-medium text-slate-900">{format(new Date(c.created_at), "dd MMM yyyy")}</p>
-              <p className="text-xs text-slate-400">{formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}</p>
-            </div>
-            <div className="rounded-lg border border-slate-200 p-3.5">
-              <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-slate-400 mb-1.5">
-                <Tag className="h-3 w-3" /> Priority
-              </div>
-              <span className={cn("inline-flex rounded-md border px-2 py-0.5 text-xs font-semibold", getPriorityColor(c.priority ?? ""))}>
-                {c.priority ?? "Not set"}
-              </span>
-            </div>
-            {c.product && (
-              <div className="rounded-lg border border-slate-200 p-3.5">
-                <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-slate-400 mb-1.5">
-                  <User className="h-3 w-3" /> Product
-                </div>
-                <p className="text-sm font-medium text-slate-900">{c.product}</p>
-              </div>
+        {/* Tabs */}
+        <div className="flex border-b border-slate-100 px-6 bg-slate-50/50">
+          <button 
+            onClick={() => setActiveTab("overview")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 -mb-px",
+              activeTab === "overview" 
+                ? "border-blue-600 text-blue-600" 
+                : "border-transparent text-slate-400 hover:text-slate-600"
             )}
-            {c.financial_loss_customer && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5">
-                <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-amber-600 mb-1.5">
-                  <IndianRupee className="h-3 w-3" /> Reported Loss
-                </div>
-                <p className="text-sm font-semibold text-amber-800">₹{Number(c.financial_loss_customer).toLocaleString("en-IN")}</p>
-              </div>
+          >
+            <LayoutDashboard className="h-3.5 w-3.5" />
+            Overview
+          </button>
+          <button 
+            onClick={() => setActiveTab("chat")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 -mb-px relative",
+              activeTab === "chat" 
+                ? "border-blue-600 text-blue-600" 
+                : "border-transparent text-slate-400 hover:text-slate-600"
             )}
-          </div>
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+            Chat
+            {c.messages && c.messages.length > 0 && (
+              <span className="absolute top-2.5 right-1.5 h-1.5 w-1.5 rounded-full bg-blue-500" />
+            )}
+          </button>
+        </div>
 
-          {/* Description */}
-          {c.description && (
-            <div>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Your Description</p>
-              <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
-                <p className="text-sm text-slate-700 leading-relaxed">{c.description}</p>
-              </div>
-            </div>
-          )}
+        <div className="flex-1 flex flex-col">
+          {activeTab === "overview" ? (
+            <div className="flex-1 space-y-6 p-6">
+              {/* Progress tracker */}
+              <VoxCard className="p-5">
+                <p className="mb-4 text-xs font-medium uppercase tracking-wider text-slate-500">Resolution Progress</p>
+                <StepTracker step={step} />
+              </VoxCard>
 
-          {/* AI Summary */}
-          {analysis && (
-            <div>
-              <div className="mb-2 flex items-center gap-2">
-                <Cpu className="h-3.5 w-3.5 text-violet-600" />
-                <p className="text-xs font-medium uppercase tracking-wider text-slate-500">AI Analysis</p>
-              </div>
-              <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-4 space-y-3">
-                {analysis.summary && (
-                  <p className="text-sm text-violet-900 leading-relaxed">{analysis.summary}</p>
+              {/* Meta grid */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg border border-slate-200 p-3.5">
+                  <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-slate-400 mb-1.5">
+                    <Calendar className="h-3 w-3" /> Submitted
+                  </div>
+                  <p className="text-sm font-medium text-slate-900">{format(new Date(c.created_at), "dd MMM yyyy")}</p>
+                  <p className="text-xs text-slate-400">{formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}</p>
+                </div>
+                <div className="rounded-lg border border-slate-200 p-3.5">
+                  <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-slate-400 mb-1.5">
+                    <Tag className="h-3 w-3" /> Priority
+                  </div>
+                  <span className={cn("inline-flex rounded-md border px-2 py-0.5 text-xs font-semibold", getPriorityColor(c.priority ?? ""))}>
+                    {c.priority ?? "Not set"}
+                  </span>
+                </div>
+                {c.product && (
+                  <div className="rounded-lg border border-slate-200 p-3.5">
+                    <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-slate-400 mb-1.5">
+                      <User className="h-3 w-3" /> Product
+                    </div>
+                    <p className="text-sm font-medium text-slate-900">{c.product}</p>
+                  </div>
                 )}
-                <div className="flex flex-wrap gap-2">
-                  {analysis.sentiment && (
-                    <span className="rounded-full bg-white border border-violet-200 px-2.5 py-0.5 text-xs font-medium text-violet-700">
-                      Sentiment: {analysis.sentiment}
-                    </span>
-                  )}
-                  {analysis.urgency && (
-                    <span className="rounded-full bg-white border border-violet-200 px-2.5 py-0.5 text-xs font-medium text-violet-700">
-                      Urgency: {analysis.urgency}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Timeline events */}
-          <div>
-            <p className="mb-3 text-xs font-medium uppercase tracking-wider text-slate-500">Timeline</p>
-            <div className="relative space-y-0">
-              <div className="absolute left-3.5 top-4 bottom-4 w-px bg-slate-200" />
-              {[
-                { icon: Send, label: "Submitted", ts: c.created_at, done: true, color: "text-blue-600 bg-blue-50 border-blue-200" },
-                { icon: TrendingUp, label: "AI Triage", ts: new Date(new Date(c.created_at).getTime() + 300000).toISOString(), done: step >= 1, color: "text-violet-600 bg-violet-50 border-violet-200" },
-                { icon: RefreshCw, label: "Under Review", ts: c.updated_at, done: step >= 2, color: "text-amber-600 bg-amber-50 border-amber-200" },
-                { icon: CheckCircle2, label: "Resolved", ts: c.resolved_at || c.updated_at, done: step >= 3, color: "text-emerald-600 bg-emerald-50 border-emerald-200" },
-              ].map((evt, i) => (
-                <div key={evt.label} className={cn("relative flex gap-3 pb-4 last:pb-0", !evt.done && "opacity-40")}>
-                  <div className={cn("relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border", evt.color)}>
-                    <evt.icon className="h-3.5 w-3.5" />
+                {c.financial_loss_customer && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5">
+                    <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-amber-600 mb-1.5">
+                      <IndianRupee className="h-3 w-3" /> Reported Loss
+                    </div>
+                    <p className="text-sm font-semibold text-amber-800">₹{Number(c.financial_loss_customer).toLocaleString("en-IN")}</p>
                   </div>
-                  <div className="pt-0.5">
-                    <p className={cn("text-sm font-medium", evt.done ? "text-slate-900" : "text-slate-400")}>{evt.label}</p>
-                    {evt.done && (
-                      <p className="text-xs text-slate-400">{formatDistanceToNow(new Date(evt.ts), { addSuffix: true })}</p>
+                )}
+              </div>
+
+              {/* Description */}
+              {c.description && (
+                <div>
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Your Description</p>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
+                    <p className="text-sm text-slate-700 leading-relaxed">{c.description}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* AI Summary */}
+              {analysis && (
+                <div>
+                  <div className="mb-2 flex items-center gap-2">
+                    <Cpu className="h-3.5 w-3.5 text-violet-600" />
+                    <p className="text-xs font-medium uppercase tracking-wider text-slate-500">AI Analysis</p>
+                  </div>
+                  <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-4 space-y-3">
+                    {analysis.summary && (
+                      <p className="text-sm text-violet-900 leading-relaxed">{analysis.summary}</p>
                     )}
+                    <div className="flex flex-wrap gap-2">
+                      {analysis.sentiment && (
+                        <span className="rounded-full bg-white border border-violet-200 px-2.5 py-0.5 text-xs font-medium text-violet-700">
+                          Sentiment: {analysis.sentiment}
+                        </span>
+                      )}
+                      {analysis.urgency && (
+                        <span className="rounded-full bg-white border border-violet-200 px-2.5 py-0.5 text-xs font-medium text-violet-700">
+                          Urgency: {analysis.urgency}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
+              )}
 
-          {/* Resolution note */}
-          {isResolved && c.resolution_note && (
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-4">
-              <p className="text-xs font-medium uppercase tracking-wider text-emerald-700 mb-1.5">Resolution Note</p>
-              <p className="text-sm text-emerald-900 leading-relaxed">{c.resolution_note}</p>
-            </div>
-          )}
-
-          {/* Feedback section */}
-          {isResolved && !c.feedback_rating && (
-            <div className="rounded-lg border border-slate-200 bg-white p-4 text-center space-y-3">
-              <Star className="mx-auto h-6 w-6 text-amber-400" />
-              <p className="text-sm font-medium text-slate-900">How was your experience?</p>
-              <p className="text-xs text-slate-500">Your feedback helps us improve.</p>
-              <VoxButton size="sm" className="w-full" onClick={onFeedback}>
-                Rate your experience
-              </VoxButton>
-            </div>
-          )}
-
-          {isResolved && c.feedback_rating && (
-            <div className="rounded-lg border border-slate-200 bg-white p-4">
-              <p className="text-xs font-medium uppercase tracking-wider text-slate-500 mb-2">Your Feedback</p>
-              <div className="flex gap-1 mb-2">
-                {[1, 2, 3, 4, 5].map((s) => (
-                  <svg key={s} className={cn("h-4 w-4", s <= c.feedback_rating ? "text-amber-400 fill-amber-400" : "text-slate-200")} viewBox="0 0 24 24">
-                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                  </svg>
-                ))}
-              </div>
-              {c.feedback_text && <p className="text-xs text-slate-600 italic">"{c.feedback_text}"</p>}
-            </div>
-          )}
-
-          {/* Escalation warning */}
-          {c.status === "ESCALATED" && (
-            <div className="rounded-lg border border-red-200 bg-red-50/60 p-4 flex gap-3">
-              <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+              {/* Timeline events */}
               <div>
-                <p className="text-sm font-semibold text-red-900">Escalated for Priority Handling</p>
-                <p className="text-xs text-red-700 mt-0.5">
-                  This Vox has been escalated to a senior specialist and will be resolved with the highest priority.
-                </p>
+                <p className="mb-3 text-xs font-medium uppercase tracking-wider text-slate-500">Timeline</p>
+                <div className="relative space-y-0">
+                  <div className="absolute left-3.5 top-4 bottom-4 w-px bg-slate-200" />
+                  {[
+                    { icon: Send, label: "Submitted", ts: c.created_at, done: true, color: "text-blue-600 bg-blue-50 border-blue-200" },
+                    { icon: TrendingUp, label: "AI Triage", ts: new Date(new Date(c.created_at).getTime() + 300000).toISOString(), done: step >= 1, color: "text-violet-600 bg-violet-50 border-violet-200" },
+                    { icon: RefreshCw, label: "Under Review", ts: c.updated_at, done: step >= 2, color: "text-amber-600 bg-amber-50 border-amber-200" },
+                    { icon: CheckCircle2, label: "Resolved", ts: c.resolved_at || c.updated_at, done: step >= 3, color: "text-emerald-600 bg-emerald-50 border-emerald-200" },
+                  ].map((evt, i) => (
+                    <div key={evt.label} className={cn("relative flex gap-3 pb-4 last:pb-0", !evt.done && "opacity-40")}>
+                      <div className={cn("relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border", evt.color)}>
+                        <evt.icon className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="pt-0.5">
+                        <p className={cn("text-sm font-medium", evt.done ? "text-slate-900" : "text-slate-400")}>{evt.label}</p>
+                        {evt.done && (
+                          <p className="text-xs text-slate-400">{formatDistanceToNow(new Date(evt.ts), { addSuffix: true })}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
+
+              {/* Resolution note */}
+              {isResolved && c.resolution_note && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-4">
+                  <p className="text-xs font-medium uppercase tracking-wider text-emerald-700 mb-1.5">Resolution Note</p>
+                  <p className="text-sm text-emerald-900 leading-relaxed">{c.resolution_note}</p>
+                </div>
+              )}
+
+              {/* Feedback section */}
+              {isResolved && !c.feedback_rating && (
+                <div className="rounded-lg border border-slate-200 bg-white p-4 text-center space-y-3">
+                  <Star className="mx-auto h-6 w-6 text-amber-400" />
+                  <p className="text-sm font-medium text-slate-900">How was your experience?</p>
+                  <p className="text-xs text-slate-500">Your feedback helps us improve.</p>
+                  <VoxButton size="sm" className="w-full" onClick={onFeedback}>
+                    Rate your experience
+                  </VoxButton>
+                </div>
+              )}
+
+              {isResolved && c.feedback_rating && (
+                <div className="rounded-lg border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-medium uppercase tracking-wider text-slate-500 mb-2">Your Feedback</p>
+                  <div className="flex gap-1 mb-2">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <svg key={s} className={cn("h-4 w-4", s <= c.feedback_rating ? "text-amber-400 fill-amber-400" : "text-slate-200")} viewBox="0 0 24 24">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                      </svg>
+                    ))}
+                  </div>
+                  {c.feedback_text && <p className="text-xs text-slate-600 italic">"{c.feedback_text}"</p>}
+                </div>
+              )}
+
+              {/* Escalation warning */}
+              {c.status === "ESCALATED" && (
+                <div className="rounded-lg border border-red-200 bg-red-50/60 p-4 flex gap-3">
+                  <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-red-900">Escalated for Priority Handling</p>
+                    <p className="text-xs text-red-700 mt-0.5">
+                      This Vox has been escalated to a senior specialist and will be resolved with the highest priority.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
+          ) : (
+            <VoxChat 
+              complaintId={c.id}
+              messages={c.messages || []}
+              onSendMessage={handleSendMessage}
+              currentUserRole="customer"
+            />
           )}
         </div>
       </div>

@@ -33,7 +33,7 @@ import { cn } from "@/lib/utils";
 import { CEO_WEEKLY_VOLUME, CEO_SENTIMENT_TREND, CEO_THEMES, CEO_API_KEYS, CEO_API_USAGE } from "@/lib/mock";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { VoxDetailSheet, type MappedComplaint, type Priority, type Sentiment, type Status } from "@/components/vox/VoxDetailSheet";
-import { getCEOMetrics, performSemanticSearch, getComplaints, escalateComplaint, resolveComplaint, updateComplaint, getEmployees, getSuggestedResponse, generateBusinessHealthReport } from "@/lib/server/complaints";
+import { getCEOMetrics, performSemanticSearch, getComplaints, escalateComplaint, resolveComplaint, updateComplaint, getEmployees, getSuggestedResponse, generateBusinessHealthReport, sendMessage } from "@/lib/server/complaints";
 import { generatePDFReport } from "@/lib/pdf-report";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
@@ -376,6 +376,7 @@ function ExecutivePortal() {
       ts: new Date(c.created_at).toLocaleString(),
       body: c.description,
       aiAnalysis: Array.isArray(c.ai_analyses) ? c.ai_analyses[0] : c.ai_analyses,
+      messages: c.messages || [],
     } as MappedComplaint;
   }, [activeId, escalatedComplaints]);
 
@@ -445,7 +446,18 @@ function ExecutivePortal() {
       await updateComplaint({ data: { id, ...updates } });
       queryClient.invalidateQueries({ queryKey: ["complaints"] });
     } catch (error) {
-      console.error("Failed to update complaint:", error);
+      toast.error("Failed to update complaint");
+    }
+  };
+
+  const handleSendMessage = async (content: string) => {
+    if (!activeId) return;
+    try {
+      await sendMessage({ data: { complaintId: activeId, role: "employee", content } });
+      queryClient.invalidateQueries({ queryKey: ["complaints"] });
+    } catch (error) {
+      console.error("Failed to send message:", error);
+      toast.error("Failed to send message");
     }
   };
 
@@ -893,6 +905,7 @@ function ExecutivePortal() {
           onResolve={handleResolve}
           onEscalate={handleEscalate}
           onUpdate={handleUpdate}
+          onSendMessage={handleSendMessage}
         />
       )}
     </VoxShell>

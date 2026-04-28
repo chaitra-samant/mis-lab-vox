@@ -28,7 +28,7 @@ import { VoxBadge } from "@/components/vox/VoxBadge";
 import { cn } from "@/lib/utils";
 import { type EmployeeSentiment } from "@/lib/mock";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getComplaints, getSuggestedResponse, resolveComplaint, escalateComplaint, reAnalyzeComplaint, updateComplaint, getEmployees } from "@/lib/server/complaints";
+import { getComplaints, getSuggestedResponse, resolveComplaint, escalateComplaint, reAnalyzeComplaint, updateComplaint, getEmployees, sendMessage } from "@/lib/server/complaints";
 import { supabase } from "@/lib/supabase";
 
 import { 
@@ -160,6 +160,7 @@ function EmployeePortal() {
       ts: new Date(c.created_at).toLocaleString(),
       body: c.description,
       aiAnalysis: Array.isArray(c.ai_analyses) ? c.ai_analyses[0] : c.ai_analyses,
+      messages: c.messages || [],
     }));
   }, [complaints]);
 
@@ -242,6 +243,16 @@ function EmployeePortal() {
       queryClient.invalidateQueries({ queryKey: ["complaints"] });
     } catch (error) {
       console.error("Failed to update complaint:", error);
+    }
+  };
+
+  const handleSendMessage = async (content: string) => {
+    if (!activeId) return;
+    try {
+      await sendMessage({ data: { complaintId: activeId, role: "employee", content } });
+      queryClient.invalidateQueries({ queryKey: ["complaints"] });
+    } catch (error) {
+      console.error("Failed to send message:", error);
     }
   };
 
@@ -431,6 +442,7 @@ function EmployeePortal() {
           onResolve={handleResolve}
           onEscalate={handleEscalate}
           onUpdate={handleUpdate}
+          onSendMessage={handleSendMessage}
         />
       )}
     </VoxShell>

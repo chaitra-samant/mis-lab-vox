@@ -30,7 +30,7 @@ export async function _getComplaints(role?: string) {
   
   let query = client
     .from("complaints")
-    .select("*, ai_analyses(*), employees:assigned_to(name)")
+    .select("*, ai_analyses(*), employees:assigned_to(name), messages(*)")
     .order("created_at", { ascending: false });
 
   // Filter by the mock customer ID when in the customer portal context.
@@ -46,7 +46,17 @@ export async function _getComplaints(role?: string) {
     throw new Error(error.message);
   }
   
-  return data;
+  return data.map((c: any) => ({
+    ...c,
+    assigned_to_name: c.employees?.name || "Unassigned",
+    messages: (c.messages || [])
+      .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      .map((m: any) => ({
+        role: m.sender_role,
+        content: m.message_text,
+        ts: m.created_at
+      }))
+  }));
 }
 
 export const resolveComplaint = createServerFn({ method: "POST" })
@@ -104,6 +114,35 @@ export const updateComplaint = createServerFn({ method: "POST" })
       .update(updates)
       .eq("id", id);
     if (error) throw new Error(error.message);
+    return { success: true };
+  });
+
+export const sendMessage = createServerFn({ method: "POST" })
+  .handler(async (args: any) => {
+    const { complaintId, role, content } = args?.data || args;
+    
+    // For the demo, we map roles to the fixed IDs from seed.sql
+    // Customer: Rahul Sharma
+    // Employee: Vikram Malhotra (CEO/Senior Agent)
+    const senderId = role === "customer" 
+      ? "c0000001-0000-0000-0000-000000000001" 
+      : "e0000001-0000-0000-0000-000000000001";
+
+    const { error } = await supabaseAdmin
+      .from("messages")
+      .insert({
+        complaint_id: complaintId,
+        sender_id: senderId,
+        sender_role: role,
+        message_text: content,
+        visible_to_customer: true
+      });
+
+    if (error) {
+      console.error("Supabase Error:", error);
+      throw new Error(error.message);
+    }
+    
     return { success: true };
   });
 

@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { X, ChevronDown } from "lucide-react";
+import { X, ChevronDown, MessageSquare, LayoutDashboard } from "lucide-react";
 import { VoxButton } from "./VoxButton";
+import { VoxChat } from "./VoxChat";
 import type { EmployeeSentiment } from "@/lib/mock";
+import { cn } from "@/lib/utils";
 
 export type Priority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 export type Sentiment = EmployeeSentiment;
@@ -42,33 +44,39 @@ export interface MappedComplaint {
       escalation_reason: string;
     };
   };
+  messages?: { role: "customer" | "employee"; content: string; ts: string }[];
 }
 
 export function VoxDetailSheet({
   vox,
   suggestedResponse,
   employees,
+  currentUserRole = "employee",
   onClose,
   onResolve,
   onEscalate,
   onUpdate,
+  onSendMessage,
 }: {
   vox: MappedComplaint;
   suggestedResponse: string | null;
   employees: any[];
+  currentUserRole?: "customer" | "employee";
   onClose: () => void;
   onResolve: (id: string) => void;
   onEscalate: (id: string) => void;
   onUpdate: (id: string, updates: any) => void;
+  onSendMessage: (content: string) => Promise<void>;
 }) {
+  const [activeTab, setActiveTab] = useState<"overview" | "chat">("overview");
   const allStatuses = ["OPEN", "IN_PROGRESS", "ESCALATED", "RESOLVED", "CLOSED"];
   const currentDbStatus = vox.status.toUpperCase().replace(" ", "_");
 
   return (
     <div className="fixed inset-0 z-50">
       <div className="absolute inset-0 bg-slate-900/30 backdrop-blur-sm" onClick={onClose} />
-      <aside className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l bg-white shadow-2xl">
-        <div className="flex items-start justify-between border-b px-6 py-5">
+      <aside className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l bg-white shadow-2xl animate-in slide-in-from-right duration-300">
+        <div className="flex items-start justify-between border-b px-6 pt-5 pb-3">
           <div>
             <div className="font-mono text-xs text-slate-400">{vox.id}</div>
             <h2 className="mt-1 text-base font-semibold text-slate-900">{vox.subject}</h2>
@@ -78,88 +86,130 @@ export function VoxDetailSheet({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5">
-          <dl className="grid grid-cols-2 gap-4 border-b pb-5">
-            <Field label="Customer" value={vox.customer} />
-            <Field label="Exposure" value={vox.exposure} />
-            
-            <div>
-              <dt className="text-[10px] font-bold uppercase text-slate-500 mb-1">Status</dt>
-              <select 
-                value={currentDbStatus}
-                onChange={(e) => onUpdate(vox.realId, { status: e.target.value })}
-                className="h-8 w-full rounded-md border border-slate-200 text-sm focus:ring-1 focus:ring-slate-400 outline-none px-2 bg-slate-50"
-              >
-                {allStatuses.map(s => (
-                  <option key={s} value={s}>{s.replace("_", " ")}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <dt className="text-[10px] font-bold uppercase text-slate-500 mb-1">Assignee</dt>
-              <EmployeeSelect 
-                employees={employees} 
-                value={vox.assigneeId} 
-                onChange={(empId) => onUpdate(vox.realId, { assigned_to: empId })} 
-              />
-            </div>
-          </dl>
-
-          <div className="mt-5">
-            <div className="text-xs font-medium uppercase text-slate-500">Customer narrative</div>
-            <p className="mt-2 rounded-md border bg-slate-50/60 p-3 text-sm text-slate-700">
-              {vox.body}
-            </p>
-          </div>
-
-          <div className="mt-6">
-            <div className="text-xs font-medium uppercase text-slate-500">AI signals</div>
-            {suggestedResponse && (
-              <div className="mt-4 rounded-md border border-blue-100 bg-blue-50 p-3">
-                <div className="text-[10px] font-bold uppercase text-blue-500 mb-1">
-                  Suggested Response
-                </div>
-                <p className="text-sm text-slate-700">{suggestedResponse}</p>
-              </div>
+        {/* Tabs */}
+        <div className="flex border-b px-6 bg-slate-50/50">
+          <button 
+            onClick={() => setActiveTab("overview")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 -mb-px",
+              activeTab === "overview" 
+                ? "border-slate-900 text-slate-900" 
+                : "border-transparent text-slate-400 hover:text-slate-600"
             )}
-            {vox.aiAnalysis && (
-              <div className="mt-3 space-y-3">
-                <div className="rounded-md border p-3 bg-slate-50">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase">AI Summary</div>
-                  <p className="text-sm text-slate-700">{vox.aiAnalysis.summary}</p>
-                </div>
+          >
+            <LayoutDashboard className="h-3.5 w-3.5" />
+            Overview
+          </button>
+          <button 
+            onClick={() => setActiveTab("chat")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 -mb-px relative",
+              activeTab === "chat" 
+                ? "border-slate-900 text-slate-900" 
+                : "border-transparent text-slate-400 hover:text-slate-600"
+            )}
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+            Chat
+            {vox.messages && vox.messages.length > 0 && (
+              <span className="absolute top-2 right-1 h-1.5 w-1.5 rounded-full bg-blue-500" />
+            )}
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {activeTab === "overview" ? (
+            <div className="px-6 py-5">
+              <dl className="grid grid-cols-2 gap-4 border-b pb-5">
+                <Field label="Customer" value={vox.customer} />
+                <Field label="Exposure" value={vox.exposure} />
                 
-                {vox.aiAnalysis.signals && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <SignalItem label="Blast Radius" value={vox.aiAnalysis.signals.blast_radius} />
-                    <SignalItem label="Trend Risk" value={vox.aiAnalysis.signals.trend_risk} />
-                    <SignalItem label="Impact" value={vox.aiAnalysis.signals.business_impact_hint} />
-                    <SignalItem label="Novelty" value={vox.aiAnalysis.signals.novelty_score} />
-                    <SignalItem label="Team" value={vox.aiAnalysis.signals.auto_routing_hint} />
-                    <SignalItem label="Dependency" value={vox.aiAnalysis.signals.dependency_risk} />
+                <div>
+                  <dt className="text-[10px] font-bold uppercase text-slate-500 mb-1">Status</dt>
+                  <select 
+                    value={currentDbStatus}
+                    onChange={(e) => onUpdate(vox.realId, { status: e.target.value })}
+                    className="h-8 w-full rounded-md border border-slate-200 text-sm focus:ring-1 focus:ring-slate-400 outline-none px-2 bg-slate-50"
+                  >
+                    {allStatuses.map(s => (
+                      <option key={s} value={s}>{s.replace("_", " ")}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <dt className="text-[10px] font-bold uppercase text-slate-500 mb-1">Assignee</dt>
+                  <EmployeeSelect 
+                    employees={employees} 
+                    value={vox.assigneeId} 
+                    onChange={(empId) => onUpdate(vox.realId, { assigned_to: empId })} 
+                  />
+                </div>
+              </dl>
+
+              <div className="mt-5">
+                <div className="text-xs font-medium uppercase text-slate-500">Customer narrative</div>
+                <p className="mt-2 rounded-md border bg-slate-50/60 p-3 text-sm text-slate-700">
+                  {vox.body}
+                </p>
+              </div>
+
+              <div className="mt-6">
+                <div className="text-xs font-medium uppercase text-slate-500">AI signals</div>
+                {suggestedResponse && (
+                  <div className="mt-4 rounded-md border border-blue-100 bg-blue-50 p-3">
+                    <div className="text-[10px] font-bold uppercase text-blue-500 mb-1">
+                      Suggested Response
+                    </div>
+                    <p className="text-sm text-slate-700">{suggestedResponse}</p>
+                  </div>
+                )}
+                {vox.aiAnalysis && (
+                  <div className="mt-3 space-y-3">
+                    <div className="rounded-md border p-3 bg-slate-50">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase">AI Summary</div>
+                      <p className="text-sm text-slate-700">{vox.aiAnalysis.summary}</p>
+                    </div>
                     
-                    <div className="col-span-2 rounded-md border p-2.5 bg-indigo-50/30 border-indigo-100">
-                      <div className="text-[10px] font-bold text-indigo-500 uppercase">Next Best Action</div>
-                      <p className="mt-1 text-xs font-medium text-slate-800">{vox.aiAnalysis.signals.next_best_action}</p>
-                    </div>
+                    {vox.aiAnalysis.signals && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <SignalItem label="Blast Radius" value={vox.aiAnalysis.signals.blast_radius} />
+                        <SignalItem label="Trend Risk" value={vox.aiAnalysis.signals.trend_risk} />
+                        <SignalItem label="Impact" value={vox.aiAnalysis.signals.business_impact_hint} />
+                        <SignalItem label="Novelty" value={vox.aiAnalysis.signals.novelty_score} />
+                        <SignalItem label="Team" value={vox.aiAnalysis.signals.auto_routing_hint} />
+                        <SignalItem label="Dependency" value={vox.aiAnalysis.signals.dependency_risk} />
+                        
+                        <div className="col-span-2 rounded-md border p-2.5 bg-indigo-50/30 border-indigo-100">
+                          <div className="text-[10px] font-bold text-indigo-500 uppercase">Next Best Action</div>
+                          <p className="mt-1 text-xs font-medium text-slate-800">{vox.aiAnalysis.signals.next_best_action}</p>
+                        </div>
 
-                    <div className="col-span-2 rounded-md border p-2.5 bg-slate-50">
-                      <div className="text-[10px] font-bold text-slate-400 uppercase">Failure Point Guess</div>
-                      <p className="mt-1 text-xs text-slate-700">{vox.aiAnalysis.signals.failure_point_guess}</p>
-                    </div>
+                        <div className="col-span-2 rounded-md border p-2.5 bg-slate-50">
+                          <div className="text-[10px] font-bold text-slate-400 uppercase">Failure Point Guess</div>
+                          <p className="mt-1 text-xs text-slate-700">{vox.aiAnalysis.signals.failure_point_guess}</p>
+                        </div>
 
-                    {vox.aiAnalysis.signals.missing_info !== "None" && (
-                      <div className="col-span-2 rounded-md border p-2.5 bg-amber-50 border-amber-100">
-                        <div className="text-[10px] font-bold text-amber-600 uppercase">Missing Info</div>
-                        <p className="mt-1 text-xs text-slate-700">{vox.aiAnalysis.signals.missing_info}</p>
+                        {vox.aiAnalysis.signals.missing_info !== "None" && (
+                          <div className="col-span-2 rounded-md border p-2.5 bg-amber-50 border-amber-100">
+                            <div className="text-[10px] font-bold text-amber-600 uppercase">Missing Info</div>
+                            <p className="mt-1 text-xs text-slate-700">{vox.aiAnalysis.signals.missing_info}</p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
                 )}
               </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <VoxChat 
+              complaintId={vox.realId}
+              messages={vox.messages || []}
+              onSendMessage={onSendMessage}
+              currentUserRole={currentUserRole}
+            />
+          )}
         </div>
 
         <div className="flex items-center gap-2 border-t bg-slate-50/50 px-6 py-3.5">
