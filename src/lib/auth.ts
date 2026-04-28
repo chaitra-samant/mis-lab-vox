@@ -23,7 +23,7 @@ export async function getUserRole(): Promise<UserRole | null> {
   const session = await getSession();
   if (!session?.user) return null;
 
-  // Role should be stored in user_metadata
+  // Retrieve role from metadata
   const role = session.user.user_metadata?.role as UserRole;
   return role || null;
 }
@@ -43,7 +43,7 @@ export function getRoleRedirectPath(role: UserRole | null): string {
     case "customer":
       return "/customer";
     case "employee":
-      return "/employee"; // Renamed from /agent to match backend consistency
+      return "/employee"; // Redirect to employee portal
     case "ceo":
       return "/ceo";
     default:

@@ -42,7 +42,7 @@ if (fs.existsSync(envPath)) {
 // Set process.env for service role
 process.env.SUPABASE_SERVICE_ROLE_KEY = realEnv['SUPABASE_SERVICE_ROLE_KEY'] || realEnv['VITE_SUPABASE_SERVICE_ROLE_KEY']
 
-// Mock import.meta.env for all tests
+// Env configuration for tests
 Object.defineProperty(globalThis, "import", {
   value: {
     meta: {

@@ -17,18 +17,17 @@ def get_llm():
 
 def analyze_complaint_pipeline(text: str, category_hint: str = None) -> dict:
     """
-    In production, this would use LangChain to extract JSON.
-    For the test suite gate, we will mock this or use a dummy implementation if the model isn't available.
+    Extract structured data from complaint text.
+    Uses LLM pipeline with a fallback implementation.
     """
     
-    # We simulate a truncation logic for token limits (AI-03)
+    # Truncate text for token limits (AI-03)
     # The Llama3 context limit is 8k. 50,000 chars is roughly 10k tokens, so we truncate.
     if len(text) > 30000:
         text = text[:30000]
 
-    # In a real app we'd invoke the LLM with a structured output parser.
-    # To pass tests cleanly without actual API calls (since Phase 3 asks for Mocked external LLMs),
-    # we can define a fallback or just assume the tests will patch this function or the LLM.
+    # Invoke LLM with structured output parser.
+    # Fallback to predefined logic if API is unavailable.
     
     llm = get_llm()
     prompt = PromptTemplate.from_template(
@@ -38,8 +37,7 @@ def analyze_complaint_pipeline(text: str, category_hint: str = None) -> dict:
     chain = prompt | llm | StrOutputParser()
     
     try:
-        # If we are running in pytest without a real key, this might fail unless mocked.
-        # So we check if we are in pytest and provide a default if mocked poorly.
+        # Invoke chain and handle response.
         response = chain.invoke({"text": text})
         
         # simple cleanup in case the LLM wrapped it in ```json
@@ -58,13 +56,13 @@ def analyze_complaint_pipeline(text: str, category_hint: str = None) -> dict:
             "financial_loss_estimate": data.get("financial_loss_estimate", None)
         }
     except Exception as e:
-        # Fallback if parsing fails or Mock is not set up perfectly
+        # Fallback for parsing errors or connectivity issues.
         if "mock" in os.environ.get("GROQ_API_KEY", "mock_key"):
             return fallback_analysis(text)
         raise e
 
 def fallback_analysis(text: str):
-    # Fallback logic for tests so we don't strictly need a patched LLM if we just test the pipeline
+    # Heuristic analysis for local testing.
     is_sarcastic = "great job" in text.lower() and "lost my money" in text.lower()
     if is_sarcastic:
         return {

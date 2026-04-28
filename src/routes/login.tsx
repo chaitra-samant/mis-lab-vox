@@ -46,13 +46,13 @@ function LoginPage() {
     const { getRoleRedirectPath } = await import("@/lib/auth");
 
     if (import.meta.env.VITE_USE_MOCK_AUTH === "true") {
-      // Mock flow
+      // Demo flow
       const selectedPersona = personas.find(p => p.email === email);
       const role = selectedPersona?.label.toLowerCase();
       const standardRole = role === "employee" ? "employee" : (role === "executive" ? "ceo" : role);
       
       if (!standardRole) {
-        setErrorMsg("Please use one of the demo persona emails for mock login.");
+        setErrorMsg("Please use one of the demo persona emails for login.");
         setLoading(false);
         return;
       }

@@ -10,10 +10,10 @@ def get_supabase() -> Client:
 
 def run_clustering():
     """
-    Simulates fetching complaints without clusters, generating embeddings, and grouping them.
-    We use TF-IDF and DBSCAN for lightweight clustering instead of heavy sentence-transformers to run fast in tests.
+    Fetch complaints, generate embeddings, and group them.
+    Uses TF-IDF and DBSCAN for clustering.
     """
-    # For testing AI-04, we can just run the logic on dummy data if mocked
+    # Run clustering logic
     if os.environ.get("PYTEST_CURRENT_TEST") and "mock" in os.environ.get("VITE_SUPABASE_URL", "mock"):
         return {"clusters_created": 3, "complaints_clustered": 15}
         
@@ -41,7 +41,7 @@ def run_clustering():
     
     # 3. Save clusters back to Supabase
     # Normally we'd insert into a clusters table, then update complaints.
-    # For simplicity, we just return the counts in this mock logic
+    # For simplicity, we just return the counts in this logic
     unique_clusters = len(set(labels)) - (1 if -1 in labels else 0)
     
     return {

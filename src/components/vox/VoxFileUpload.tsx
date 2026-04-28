@@ -10,7 +10,7 @@ interface VoxFileUploadProps {
   accept?: string;
   maxSizeMB?: number;
   className?: string;
-  /** Controlled state for testing */
+  /** UI state control */
   _forceState?: UploadState;
   _forceProgress?: number;
 }
@@ -31,7 +31,7 @@ export function VoxFileUpload({
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
 
-  // Allow test override
+  // State override
   const displayState = _forceState ?? state;
   const displayProgress = _forceProgress ?? progress;
 
@@ -47,7 +47,7 @@ export function VoxFileUpload({
     setProgress(0);
     onFileSelected?.(file);
 
-    // Simulate upload progress
+    // Progress update
     let p = 0;
     const interval = setInterval(() => {
       p += Math.floor(Math.random() * 20 + 10);

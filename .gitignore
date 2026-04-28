@@ -35,6 +35,8 @@ yarn-error.log*
 .lovable
 .wrangler
 /.wrangler
+.tanstack
+.pytest_cache
 
 # TypeScript
 *.tsbuildinfo
@@ -45,4 +47,5 @@ ai/venv/
 venv/
 .venv/
 __pycache__/
+.pytest_cache/
 *.pyc

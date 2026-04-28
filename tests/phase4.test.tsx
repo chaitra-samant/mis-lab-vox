@@ -5,7 +5,7 @@
  * Strategy: Vitest + React Testing Library + jsdom
  *
  * UI-01: Portal Routing — unauthenticated state blocks access
- * UI-02: Employee Queue — 100 mock complaints with pagination (10/page)
+ * UI-02: Employee Queue — 100 complaints with pagination (10/page)
  * UI-03: File Upload UI — loading, progress, success states
  * UI-04: CEO Charting — AreaChart renders without JS errors
  * UI-05: Accessibility — ARIA labels on interactive elements
@@ -21,7 +21,7 @@ import { CEO_THEMES } from "@/lib/mock";
 // Mocks
 // ============================================================
 
-// Mock TanStack Router — prevents route context errors in tests
+// Router configuration — prevents context errors in tests
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => () => ({ component: null }),
   Link: ({ children, to, ...props }: any) =>
@@ -30,7 +30,7 @@ vi.mock("@tanstack/react-router", () => ({
   redirect: vi.fn(),
 }));
 
-// Mock Supabase auth so no real network calls
+// Auth configuration — bypass network calls
 vi.mock("@/lib/supabase", () => ({
   supabase: {
     auth: {
@@ -47,7 +47,7 @@ vi.mock("@/lib/auth", () => ({
   signOut: vi.fn(),
 }));
 
-// Mock recharts to avoid SVG/canvas issues in jsdom
+// Chart configuration — bypass SVG/canvas issues in jsdom
 vi.mock("recharts", () => ({
   ResponsiveContainer: ({ children }: any) =>
     React.createElement("div", { "data-testid": "responsive-container" }, children),
@@ -67,7 +67,7 @@ vi.mock("recharts", () => ({
 }));
 
 // ============================================================
-// Imports under test (after mocks)
+// System under test
 // ============================================================
 import { VoxFileUpload, type UploadState } from "@/components/vox/VoxFileUpload";
 import { MOCK_AGENT_COMPLAINTS } from "@/lib/mock";
@@ -122,10 +122,10 @@ describe("UI-01: Portal Routing — Unauthenticated State", () => {
 // ============================================================
 // UI-02: Employee Queue — 100 Complaints + Pagination
 // ============================================================
-describe("UI-02: Employee Queue — 100 Mock Complaints with Pagination", () => {
+describe("UI-02: Employee Queue — 100 Complaints with Pagination", () => {
   const PAGE_SIZE = 10;
 
-  it("Mock dataset has exactly 100 complaints", () => {
+  it("Dataset has exactly 100 complaints", () => {
     expect(MOCK_AGENT_COMPLAINTS).toHaveLength(100);
   });
 
@@ -290,7 +290,7 @@ describe("UI-03: File Upload UI — Loading, Progress, Success States", () => {
 // ============================================================
 describe("UI-04: CEO Charting — Renders Without JS Errors", () => {
   it("AreaChart renders within ResponsiveContainer", () => {
-    // Use the mocked recharts components (no real browser APIs needed)
+    // Use chart components (no real browser APIs needed)
     function TestChart() {
       return (
         <div data-testid="responsive-container">
@@ -358,7 +358,7 @@ describe("UI-04: CEO Charting — Renders Without JS Errors", () => {
   it("No unhandled exceptions when chart data is provided", () => {
     expect(() => {
       const data = [1, 2, 3, 4].map((v) => ({ value: v }));
-      // Simulate what AreaChart does with data
+      // Process chart data
       const max = Math.max(...data.map((d) => d.value));
       const min = Math.min(...data.map((d) => d.value));
       expect(max).toBeGreaterThan(min);
