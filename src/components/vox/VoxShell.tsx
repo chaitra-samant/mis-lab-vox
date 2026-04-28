@@ -86,7 +86,7 @@ export function VoxShell({
   const SidebarContent = () => (
     <div className="flex h-full flex-col">
       <div className="flex h-16 items-center justify-between border-b border-slate-200/60 px-5">
-        <VoxLogo />
+        <VoxLogo accent={accent === "emerald" ? "emerald" : accent === "violet" ? "violet" : "black"} />
         <button
           onClick={() => setMobileOpen(false)}
           className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 lg:hidden"
