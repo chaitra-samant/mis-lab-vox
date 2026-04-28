@@ -56,6 +56,8 @@ interface NavItem {
   icon: ReactNode;
   active?: boolean;
   onClick?: () => void;
+  badge?: string;
+  isPro?: boolean;
 }
 
 interface VoxShellProps {
@@ -64,9 +66,19 @@ interface VoxShellProps {
   navItems?: NavItem[];
   user?: { name: string; role: string };
   children: ReactNode;
+  className?: string;
+  contentClassName?: string;
 }
 
-export function VoxShell({ accent, portalLabel, navItems = [], user, children }: VoxShellProps) {
+export function VoxShell({ 
+  accent, 
+  portalLabel, 
+  navItems = [], 
+  user, 
+  children,
+  className,
+  contentClassName 
+}: VoxShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
   const a = accentClasses[accent];
@@ -105,14 +117,26 @@ export function VoxShell({ accent, portalLabel, navItems = [], user, children }:
               aria-label={item.label}
               aria-current={item.active ? "page" : undefined}
               className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors cursor-pointer",
+                "group flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors cursor-pointer",
                 item.active
                   ? a.activeBg
                   : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
               )}
             >
-              <span className="[&_svg]:h-4 [&_svg]:w-4" aria-hidden="true">{item.icon}</span>
-              <span>{item.label}</span>
+              <div className="flex items-center gap-3">
+                <span className="[&_svg]:h-4 [&_svg]:w-4" aria-hidden="true">{item.icon}</span>
+                <span>{item.label}</span>
+              </div>
+              {item.badge && (
+                <span className={cn(
+                  "ml-auto inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider",
+                  item.isPro 
+                    ? "bg-violet-600 text-white" 
+                    : "bg-slate-100 text-slate-500"
+                )}>
+                  {item.badge}
+                </span>
+              )}
             </Wrapper>
           );
         })}
@@ -147,7 +171,7 @@ export function VoxShell({ accent, portalLabel, navItems = [], user, children }:
   );
 
   return (
-    <div className="flex min-h-screen bg-[#F9FAFB]">
+    <div className={cn("flex min-h-screen bg-[#F9FAFB]", className)}>
       {/* Desktop sidebar */}
       <aside className="sticky top-0 hidden h-screen w-60 flex-shrink-0 border-r border-slate-200/60 bg-white lg:block">
         <SidebarContent />
@@ -198,7 +222,9 @@ export function VoxShell({ accent, portalLabel, navItems = [], user, children }:
           </div>
         </header>
 
-        <main role="main" id="vox-main-content" className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        <main role="main" id="vox-main-content" className={cn("flex-1 px-4 py-6 sm:px-6 lg:px-8", contentClassName)}>
+          {children}
+        </main>
       </div>
     </div>
   );

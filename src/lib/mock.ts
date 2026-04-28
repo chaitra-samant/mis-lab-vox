@@ -212,3 +212,19 @@ export const CEO_THEMES = [
   { label: "Statement reconciliation gaps", count: 61, pct: 38 },
   { label: "ATM dispute resolution time", count: 44, pct: 26 },
 ];
+
+export const CEO_API_KEYS = [
+  { name: "Main Production Key", key: "vx_prod_a7b8c9d0e1f2g3h4i5j6", created: "2026-01-12", status: "Active" },
+  { name: "Staging/QA Key", key: "vx_test_z1y2x3w4v5u6t7s8r9q0", created: "2026-03-05", status: "Active" },
+];
+
+export const CEO_API_USAGE = [
+  { date: "2026-04-14", calls: 4200 },
+  { date: "2026-04-15", calls: 4500 },
+  { date: "2026-04-16", calls: 5100 },
+  { date: "2026-04-17", calls: 4800 },
+  { date: "2026-04-18", calls: 6200 },
+  { date: "2026-04-19", calls: 7100 },
+  { date: "2026-04-20", calls: 6800 },
+];
+

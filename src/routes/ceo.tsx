@@ -12,6 +12,17 @@ import {
   Building2,
   Search,
   IndianRupee,
+  Terminal,
+  Key,
+  Webhook,
+  Copy,
+  RefreshCw,
+  Trash2,
+  Zap,
+  Check,
+  Lock,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { AreaChart, Area, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { VoxShell } from "@/components/vox/VoxShell";
@@ -19,7 +30,7 @@ import { VoxCard } from "@/components/vox/VoxCard";
 import { VoxBadge } from "@/components/vox/VoxBadge";
 import { VoxButton } from "@/components/vox/VoxButton";
 import { cn } from "@/lib/utils";
-import { CEO_WEEKLY_VOLUME, CEO_SENTIMENT_TREND, CEO_THEMES } from "@/lib/mock";
+import { CEO_WEEKLY_VOLUME, CEO_SENTIMENT_TREND, CEO_THEMES, CEO_API_KEYS, CEO_API_USAGE } from "@/lib/mock";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { VoxDetailSheet, type MappedComplaint, type Priority, type Sentiment, type Status } from "@/components/vox/VoxDetailSheet";
 import { getCEOMetrics, performSemanticSearch, getComplaints, escalateComplaint, resolveComplaint, updateComplaint, getEmployees, getSuggestedResponse, generateBusinessHealthReport } from "@/lib/server/complaints";
@@ -62,12 +73,270 @@ export const Route = createFileRoute("/ceo")({
   component: ExecutivePortal,
 });
 
+function APIEndpointsPage() {
+  const [copied, setCopied] = useState<string | null>(null);
+  const [isPinging, setIsPinging] = useState(false);
+  const [pingStatus, setPingStatus] = useState<"idle" | "success">("idle");
+  const [showToken, setShowToken] = useState(false);
+  const orgToken = "vox_live_org_7a9f2e3d8c1b4e9a2f6d5c8b0a1e3f";
+
+  const handleCopy = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(id);
+    toast.success("Copied to clipboard");
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  const handlePing = () => {
+    setIsPinging(true);
+    toast.info("Sending ping to webhook URL...");
+    setTimeout(() => {
+      setIsPinging(false);
+      setPingStatus("success");
+      toast.success("Webhook endpoint acknowledged (200 OK)");
+    }, 1500);
+  };
+
+  return (
+    <div className="space-y-8 animate-in fade-in duration-700">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <p className="text-xs font-bold uppercase tracking-wider text-violet-600">Infrastructure</p>
+            <VoxBadge className="bg-violet-600 text-white border-none">Pro Tier</VoxBadge>
+          </div>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">API Endpoints</h1>
+          <p className="mt-1 text-sm text-slate-500 max-w-2xl">
+            Seamlessly integrate Vox intelligence into your own customer-facing platforms.
+          </p>
+        </div>
+        <div className="flex flex-col items-end gap-2">
+          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Active Plan</div>
+          <div className="flex items-center gap-3 bg-violet-50 border border-violet-100 px-4 py-2 rounded-lg">
+            <span className="text-xs font-bold text-violet-700">Enterprise Pro</span>
+            <span className="h-4 w-px bg-violet-200" />
+            <span className="text-xs font-semibold text-violet-600">₹14,999/mo</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Org Token Section */}
+      <VoxCard className="p-6 border-l-4 border-l-violet-500">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex-1">
+            <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+              <Lock className="h-4 w-4 text-violet-500" />
+              Organization Bearer Token
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">This token is unique to AuraBank and should be kept confidential. Use it in the <code className="bg-slate-100 px-1 rounded">Authorization</code> header.</p>
+          </div>
+          <div className="flex items-center gap-2 w-full md:w-[450px]">
+            <div className="relative flex-1 group">
+              <input 
+                type={showToken ? "text" : "password"} 
+                readOnly 
+                value={orgToken} 
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-4 pr-12 py-2.5 text-sm font-mono text-slate-600 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+              />
+              <button 
+                onClick={() => setShowToken(!showToken)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-slate-600 transition-colors"
+                title={showToken ? "Hide Token" : "Show Token"}
+              >
+                {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            <VoxButton 
+              variant="outline" 
+              className="gap-2 shrink-0 h-[42px]"
+              onClick={() => handleCopy(orgToken, 'org-token')}
+            >
+              {copied === 'org-token' ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+              {copied === 'org-token' ? "Copied" : "Copy"}
+            </VoxButton>
+          </div>
+        </div>
+      </VoxCard>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2 space-y-6">
+          {/* Endpoints List */}
+          <VoxCard className="p-6">
+            <div className="mb-6">
+              <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                <Terminal className="h-5 w-5 text-violet-500" />
+                Service Endpoints
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">Available methods for your integration.</p>
+            </div>
+            
+            <div className="space-y-6">
+              <div className="p-4 rounded-lg bg-slate-50 border border-slate-100">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[10px] font-bold">POST</span>
+                    <span className="text-sm font-mono font-bold text-slate-900">/v1/complaints</span>
+                  </div>
+                  <span className="text-[10px] font-medium text-slate-400">Limit: 10,000 / mo</span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Ingest customer complaints directly into Vox from your custom UI or mobile app. 
+                  Automatically triggers AI analysis and sentiment detection.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-lg bg-slate-50 border border-slate-100">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-700 text-[10px] font-bold">GET</span>
+                    <span className="text-sm font-mono font-bold text-slate-900">/v1/status/&#123;id&#125;</span>
+                  </div>
+                  <span className="text-[10px] font-medium text-slate-400">Limit: 50,000 / mo</span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Retrieve real-time status updates and AI-generated insights for a specific complaint ID. 
+                  Use this to power "Track my Vox" features in your client portal.
+                </p>
+              </div>
+            </div>
+          </VoxCard>
+
+          {/* API Keys */}
+          <VoxCard className="p-6">
+            <div className="mb-6">
+              <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                <Key className="h-5 w-5 text-violet-500" />
+                Active API Keys
+              </h2>
+            </div>
+            <div className="space-y-4">
+              {CEO_API_KEYS.map((k) => (
+                <div key={k.key} className="flex items-center justify-between p-4 rounded-lg bg-slate-50 border border-slate-100 group hover:border-violet-200 transition-colors">
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">{k.name}</p>
+                    <p className="text-xs text-slate-500 font-mono mt-1 select-all">{k.key}</p>
+                    <div className="flex items-center gap-3 mt-2">
+                      <span className="text-[10px] text-slate-400 uppercase tracking-wider">Created {k.created}</span>
+                      <span className="h-1 w-1 rounded-full bg-slate-300" />
+                      <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">{k.status}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                      onClick={() => handleCopy(k.key, k.key)}
+                      className="p-2 hover:bg-white rounded-md transition-colors text-slate-400 hover:text-violet-600"
+                      title="Copy Key"
+                    >
+                      {copied === k.key ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </button>
+                    <button className="p-2 hover:bg-white rounded-md transition-colors text-slate-400 hover:text-violet-600" title="Rotate Key">
+                      <RefreshCw className="h-4 w-4" />
+                    </button>
+                    <button className="p-2 hover:bg-rose-50 rounded-md transition-colors text-slate-400 hover:text-rose-600" title="Revoke Access">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </VoxCard>
+        </div>
+
+        <div className="space-y-6">
+          {/* Usage Chart */}
+          <VoxCard className="p-6">
+            <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2 mb-6">
+              <Activity className="h-5 w-5 text-violet-500" />
+              API Traffic Volume
+            </h2>
+            <div className="h-48 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={CEO_API_USAGE} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="usageGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.15}/>
+                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <Area 
+                    type="monotone" 
+                    dataKey="calls" 
+                    stroke="#8b5cf6" 
+                    fillOpacity={1} 
+                    fill="url(#usageGrad)" 
+                    strokeWidth={2} 
+                    isAnimationActive={true}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between items-end">
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Billing Cycle</p>
+                <p className="text-2xl font-bold text-slate-900">38,700</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Usage</p>
+                <p className="text-sm font-medium text-violet-600">77.4% of limit</p>
+              </div>
+            </div>
+          </VoxCard>
+
+          {/* Webhooks */}
+          <VoxCard className="p-6">
+            <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2 mb-4">
+              <Webhook className="h-5 w-5 text-violet-500" />
+              Event Webhooks
+            </h2>
+            <p className="text-xs text-slate-500 mb-4">Receive push notifications for state changes.</p>
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Production URL</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    readOnly 
+                    value="https://hooks.mybank.com/vox" 
+                    className="flex-1 bg-slate-50 border border-slate-200 rounded px-3 py-2 text-xs font-mono text-slate-600"
+                  />
+                  <VoxButton 
+                    size="sm" 
+                    variant="outline" 
+                    className="text-[10px] h-auto py-1 px-3"
+                    onClick={handlePing}
+                    disabled={isPinging}
+                  >
+                    {isPinging ? "Pinging..." : "Ping"}
+                  </VoxButton>
+                </div>
+              </div>
+              
+              <div className={cn(
+                "flex items-center gap-2 text-[10px] font-medium rounded-full px-3 py-1.5 w-fit border transition-all duration-500",
+                pingStatus === "success" 
+                  ? "text-emerald-600 bg-emerald-50 border-emerald-100" 
+                  : "text-slate-400 bg-slate-50 border-slate-100"
+              )}>
+                <div className={cn(
+                  "h-1.5 w-1.5 rounded-full",
+                  pingStatus === "success" ? "bg-emerald-500 animate-pulse" : "bg-slate-300"
+                )} />
+                {pingStatus === "success" ? "Endpoint verified: 200 OK" : "Waiting for ping..."}
+              </div>
+            </div>
+          </VoxCard>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ExecutivePortal() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any>(null);
   const [isSearching, setIsSearching] = useState(false);
-  const [activeTab, setActiveTab] = useState<"Strategic Intelligence" | "Escalated Voxes" | "Department Analytics">("Strategic Intelligence");
+  const [activeTab, setActiveTab] = useState<"Strategic Intelligence" | "Escalated Voxes" | "Department Analytics" | "API Endpoints">("Strategic Intelligence");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [suggestedResponse, setSuggestedResponse] = useState<string | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
@@ -256,7 +525,9 @@ function ExecutivePortal() {
         { label: "Strategic Intelligence", icon: <LineChartIcon />, active: activeTab === "Strategic Intelligence", onClick: () => setActiveTab("Strategic Intelligence") },
         { label: "Escalated Voxes", icon: <ShieldCheck />, active: activeTab === "Escalated Voxes", onClick: () => setActiveTab("Escalated Voxes") },
         { label: "Department Analytics", icon: <Building2 />, active: activeTab === "Department Analytics", onClick: () => setActiveTab("Department Analytics") },
+        { label: "API Endpoints", icon: <Terminal />, active: activeTab === "API Endpoints", onClick: () => setActiveTab("API Endpoints"), badge: "PRO", isPro: true },
       ]}
+      contentClassName={activeTab === "API Endpoints" ? "min-h-[calc(100vh-64px)]" : ""}
     >
       {activeTab === "Strategic Intelligence" && (
         <div className="space-y-8">
@@ -610,6 +881,8 @@ function ExecutivePortal() {
           )}
         </div>
       )}
+
+      {activeTab === "API Endpoints" && <APIEndpointsPage />}
 
       {activeVox && (
         <VoxDetailSheet
