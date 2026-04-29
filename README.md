@@ -135,6 +135,4 @@ graph TD
     python -m uvicorn main:app --reload
     ```
 
-## License
 
-This project was developed as part of the MIS Lab curriculum. All rights reserved.
